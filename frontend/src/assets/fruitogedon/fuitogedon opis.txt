@@ -1,0 +1,6 @@
+5 kolumn 3 wiersze
+Linie wygrywajace jak w mumii
+Wild działa jest jako każdy symbol
+Bonus włacza się, gdy 3 wildy spadną w jednej kolumnie. Zostają w niej i gracz dostaje 3 respiny z tymi wildami, jak podczas bonusu spadna kolejne takie to dodaje 3 respiny, ale tylko do tych nowych, poprzednie znikają po trzech odkąd się pojawiły.
+Mnożniki takie same jak w mumii z kolejnością od najgorzego symbolu:
+wiśnie, cytryna, pomarańcz, truskawka, winogrona, arbuz, wild

@@ -1,0 +1,20 @@
+{
+  "name": "absolute-casino",
+  "version": "1.0.0",
+  "description": "Tematem projektu jest internetowe kasyno. Dostępne będą różne gry typu \"slots\", jak i klasyczne gry takie jak ruletka czy blackjack. Walutą w grze będa wirtualne punkty, które gracz będzie wydawał na zakłady. Wyniki gier będą determinowane za pomocą algorytmów wykorzystujących RNG, zapewniających sprawiedliwość oraz zgodność z prawem.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "echo \"Error: no test specified\" && exit 1",
+    "backend:dev": "java -jar backend/target/backend-0.0.1-SNAPSHOT.jar"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "turbo": "^2.2.3"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "packageManager": "bun@1.1.26"
+}
