@@ -45,7 +45,7 @@ public class BaccaratWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
 
-            BaccaratGameSession gameSession = new BaccaratGameSession(user.getId());
+            BaccaratGameSession gameSession = new BaccaratGameSession(session.getId(), user.getId());
 
             session.sendMessage(new TextMessage("{\"Type\":\"CONNECTED\"}"));
 

@@ -1,12 +1,18 @@
 package com.absoluteCasino.control.games;
 
+import com.absoluteCasino.control.games.poker.PokerGameSession;
+import com.absoluteCasino.games.user.User;
+import com.absoluteCasino.user.UserDto;
+import lombok.Getter;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 
 @Service
+@Getter
 public class GameSessionService {
     private final Map<Integer, List<GameSession>> userSessions = new HashMap<>();
+    private final Map<PokerGameSession, List<UserDto>> pokerSessions = new HashMap<>();
 
     public void addGameSession(Integer userId, GameSession session) {
         userSessions.putIfAbsent(userId, new ArrayList<>());
@@ -15,10 +21,6 @@ public class GameSessionService {
 
     public List<GameSession> getGameSessions(Integer userId) {
         return userSessions.getOrDefault(userId, new ArrayList<>());
-    }
-
-    public Map<Integer, List<GameSession>> getAllSessions() {
-        return userSessions;
     }
 
     public void removeSessions(Integer userId) {

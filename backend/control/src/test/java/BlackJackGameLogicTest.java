@@ -19,7 +19,7 @@ class BlackJackGameSessionTest {
 
     @Test
     void dealCards_PlayerBlackjack_ShouldReturnProperResult() throws Exception {
-        BlackJackGameSession session = new BlackJackGameSession(1);
+        BlackJackGameSession session = new BlackJackGameSession("", 1);
         injectTestCards(session, List.of("AH", "KH", "2D", "3S", "QS"));
 
         BlackJackGameResponse response = session.dealCards(100L, true);
@@ -30,7 +30,7 @@ class BlackJackGameSessionTest {
 
     @Test
     void dealCards_BothBlackjack_ShouldReturnDraw() throws Exception {
-        BlackJackGameSession session = new BlackJackGameSession(1);
+        BlackJackGameSession session = new BlackJackGameSession("", 1);
         injectTestCards(session, List.of("AH", "KH", "AS", "KS", "QS"));
 
         BlackJackGameResponse response = session.dealCards(100L, true);
@@ -42,7 +42,7 @@ class BlackJackGameSessionTest {
 
     @Test
     void hit_PlayerBust_ShouldReturnLost() throws Exception {
-        BlackJackGameSession session = new BlackJackGameSession(1);
+        BlackJackGameSession session = new BlackJackGameSession("", 1);
         injectTestCards(session, List.of("TH", "6D", "2S", "7C", "KH", "3D"));
 
         session.dealCards(100L, true);
@@ -55,7 +55,7 @@ class BlackJackGameSessionTest {
 
     @Test
     void split_ShouldCreateTwoHands() throws Exception {
-        BlackJackGameSession session = new BlackJackGameSession(1);
+        BlackJackGameSession session = new BlackJackGameSession("", 1);
         injectTestCards(session, List.of("8H", "8D", "2S", "3C", "4D", "5H", "6S"));
 
         session.dealCards(100L, true);
@@ -69,7 +69,7 @@ class BlackJackGameSessionTest {
 
     @Test
     void stand_DealerBust_ShouldReturnWin() throws Exception {
-        BlackJackGameSession session = new BlackJackGameSession(1);
+        BlackJackGameSession session = new BlackJackGameSession("", 1);
         injectTestCards(session, List.of("TH", "7D", "6S", "8C", "KH", "2D"));
 
         session.dealCards(100L, true);

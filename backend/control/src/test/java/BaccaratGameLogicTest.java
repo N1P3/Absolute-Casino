@@ -15,7 +15,7 @@ class BaccaratGameSessionTest {
 
     @Test
     void dealCards_PlayerWin_ShouldReturnProperResult() throws Exception {
-        BaccaratGameSession session = new BaccaratGameSession(1);
+        BaccaratGameSession session = new BaccaratGameSession("1",1);
         injectTestCards(session, List.of("8S", "2D", "KH", "3S"));
 
         BaccaratGameResponse response = session.dealCards(BaccaratPlayersChoice.PUNTO, 100L);
@@ -27,7 +27,7 @@ class BaccaratGameSessionTest {
 
     @Test
     void dealCards_Tie_ShouldReturnProperPayout() throws Exception {
-        BaccaratGameSession session = new BaccaratGameSession(1);
+        BaccaratGameSession session = new BaccaratGameSession("1",1);
         injectTestCards(session, List.of("8S", "8D", "KH","QS"));
 
         BaccaratGameResponse response = session.dealCards(BaccaratPlayersChoice.TIE, 100L);
@@ -39,7 +39,7 @@ class BaccaratGameSessionTest {
 
     @Test
     void hit_ThirdCardRules_ShouldFollowProperLogic() throws Exception {
-        BaccaratGameSession session = new BaccaratGameSession(1);
+        BaccaratGameSession session = new BaccaratGameSession("1",1);
         injectTestCards(session, List.of("3S", "4D", "2H", "2S", "6C"));
 
         BaccaratGameResponse response = session.dealCards(BaccaratPlayersChoice.PUNTO, 100L);

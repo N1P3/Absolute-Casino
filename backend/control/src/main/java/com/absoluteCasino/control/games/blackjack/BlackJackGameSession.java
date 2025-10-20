@@ -12,9 +12,9 @@ public class BlackJackGameSession extends GameSession {
     CardsShoe cardsShoe;
     BlackJackGame blackJackGame;
 
-    public BlackJackGameSession(Integer userId) {
+    public BlackJackGameSession(String sessionId, Integer userId) {
 
-        super(GameSession.BLACKJACK, userId);
+        super(sessionId, userId);
 
         this.cardsShoe = new CardsShoe();
         this.blackJackGame = new BlackJackGame();

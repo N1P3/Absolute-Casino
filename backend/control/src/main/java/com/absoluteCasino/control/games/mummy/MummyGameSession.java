@@ -19,8 +19,8 @@ public class MummyGameSession extends GameSession {
 
     private Long betMemory = 0L;
 
-    public MummyGameSession(Integer userId) {
-        super(GameSession.MUMMY, userId);
+    public MummyGameSession(String sessionId, Integer userId) {
+        super(sessionId, userId);
         this.slotGame = new SlotGameLogic(new MummyGameConfig());
     }
 

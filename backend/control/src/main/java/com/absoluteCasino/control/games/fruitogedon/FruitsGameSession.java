@@ -16,8 +16,8 @@ public class FruitsGameSession extends GameSession {
     private Bonus currentBonus;
     private Long betMemory = 0L;
 
-    public FruitsGameSession(Integer userId) {
-        super(GameSession.FRUITOGEDON, userId);
+    public FruitsGameSession(String sessionId, Integer userId) {
+        super(sessionId, userId);
         fruitsGameConfig = new FruitsGameConfig();
         this.slotGame = new SlotGameLogic(fruitsGameConfig);
     }

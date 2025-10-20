@@ -13,7 +13,7 @@ public class FruitsProfitTest {
 
     @Test
     void fruitsProfitAt70Percentage() {
-        FruitsGameSession fruitsGameSession = new FruitsGameSession(1);
+        FruitsGameSession fruitsGameSession = new FruitsGameSession("",1);
 
         ArrayList<Double> wins = new ArrayList<>();
         ArrayList<Long> bets = new ArrayList<>();

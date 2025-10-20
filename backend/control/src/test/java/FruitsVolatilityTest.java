@@ -12,7 +12,7 @@ public class FruitsVolatilityTest {
 
     @Test
     void fruitsVolatilityIndexTest() {
-        FruitsGameSession gameSession = new FruitsGameSession(1);
+        FruitsGameSession gameSession = new FruitsGameSession("",1);
         List<Double> multipliers = new ArrayList<>();
 
         for (int i = 0; i < 1_000_000; i++) {

@@ -12,7 +12,7 @@ public class MummyVolatilityTest {
 
     @Test
     void volatilityIndexTest() {
-        MummyGameSession gameSession = new MummyGameSession(1);
+        MummyGameSession gameSession = new MummyGameSession("",1);
         List<Double> multipliers = new ArrayList<>();
 
         for (int i = 0; i < 1_000_000; i++) {

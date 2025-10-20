@@ -10,9 +10,9 @@ public class BaccaratGameSession extends GameSession {
     CardsShoe cardsShoe;
     BaccaratGame baccaratGame;
 
-    public BaccaratGameSession(Integer userId) {
+    public BaccaratGameSession(String sessionId, Integer userId) {
 
-        super(GameSession.BACCARAT, userId);
+        super(sessionId, userId);
 
         this.cardsShoe = new CardsShoe();
         this.baccaratGame = new BaccaratGame();

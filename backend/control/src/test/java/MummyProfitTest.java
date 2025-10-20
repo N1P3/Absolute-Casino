@@ -14,7 +14,7 @@ public class MummyProfitTest {
 
     @Test
     void mummyProfitAt70Percentage() {
-        MummyGameSession mummyGameSession = new MummyGameSession(1);
+        MummyGameSession mummyGameSession = new MummyGameSession("",1);
 
         ArrayList<Double> wins = new ArrayList<>();
         ArrayList<Long> bets = new ArrayList<>();

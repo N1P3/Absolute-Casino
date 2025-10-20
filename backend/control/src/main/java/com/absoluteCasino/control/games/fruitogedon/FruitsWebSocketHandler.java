@@ -47,7 +47,7 @@ public class FruitsWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
 
-            FruitsGameSession gameSession = new FruitsGameSession(user.getId());
+            FruitsGameSession gameSession = new FruitsGameSession(session.getId(), user.getId());
 
             session.sendMessage(new TextMessage("{\"Type\":\"CONNECTED\"}"));
 

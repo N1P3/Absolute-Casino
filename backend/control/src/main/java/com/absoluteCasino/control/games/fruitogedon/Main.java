@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Main {
     public static void main(String[] args) throws JsonProcessingException {
-        FruitsGameSession gameSession = new FruitsGameSession(135);
+        FruitsGameSession gameSession = new FruitsGameSession("",135);
 
         for (int i = 0; i < 100; i++) {
             gameSession.spin(1L);

@@ -45,7 +45,7 @@ public class BlackJackWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
 
-            BlackJackGameSession gameSession = new BlackJackGameSession(user.getId());
+            BlackJackGameSession gameSession = new BlackJackGameSession(session.getId(), user.getId());
 
             session.sendMessage(new TextMessage("{\"Type\":\"CONNECTED\"}"));
 
