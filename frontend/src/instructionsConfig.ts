@@ -174,13 +174,62 @@ const baccarat = {
   ],
 };
 
-
+const makao = {
+  title: "Makao - Instrukcja i Zasady Gry",
+  items: [
+    {
+      title: "Opis gry",
+      content: `Makao to popularna polska gra karciana, w której celem jest pozbycie się wszystkich kart z ręki. 
+        Gra toczy się między graczem a komputerem, a kluczem do zwycięstwa jest strategiczne zagrywanie kart 
+        pasujących do karty leżącej na stole.`,
+    },
+    {
+      title: "1. Rozpoczęcie gry",
+      content: `- Każdy gracz (ty i komputer) otrzymuje na start 5 kart.\n
+        - Jedna karta zostaje odkryta na środku stołu.\n
+        - Pozostałe karty tworzą talię do dobierania.`,
+    },
+    {
+      title: "2. Zasady zagrywania kart",
+      content: `Możesz zagrać kartę, jeśli:\n
+        - Ma taki sam kolor (♥♦♣♠) jak karta na stole\n
+        - Ma taką samą wartość (np. 7 na 7, Dama na Damę)\n
+        - Jest to As lub Jopek (karty specjalne)`,
+    },
+    {
+      title: "3. Karty specjalne",
+      content: `- **As:** Może być zagrany na dowolną kartę. Po zagraniu Asa wybierasz kolor, który będzie obowiązywał.\n
+        - **Jopek (Walet):** Może być zagrany na dowolną kartę i pozwala zmienić kolor.\n
+        - **Król Pik (♠K):** Komputer musi dobrać 5 kart (w pełnej wersji gry).\n
+        - **Trójka:** Komputer musi dobrać 3 karty (w pełnej wersji gry).\n
+        - **Dwójka:** Komputer musi dobrać 2 karty (w pełnej wersji gry).\n
+        - **Czwórka:** Komputer czeka kolejkę (w pełnej wersji gry).`,
+    },
+    {
+      title: "4. Dobieranie kart",
+      content: `Jeśli nie możesz zagrać żadnej karty, musisz dobrać kartę z talii. 
+        Po dobieraniu kolejka przechodzi na komputer.`,
+    },
+    {
+      title: "5. Wygrana",
+      content: `Wygrywasz, gdy pozbędziesz się wszystkich swoich kart jako pierwszy. 
+        Przegrywasz, jeśli komputer pozbędzie się swoich kart przed tobą.`,
+    },
+    {
+      title: "6. Wskazówki strategiczne",
+      content: `- Oszczędzaj Asy i Jopki na trudniejsze sytuacje.\n
+        - Staraj się obserwować, jakie kolory są najczęściej grane.\n
+        - Nie spiesz się z zagraniem ostatniej karty - upewnij się, że możesz ją zagrać!`,
+    },
+  ],
+};
 
 const instructionsConfig = {
   blackjack,
   mummy,
   fruitogedon,
-  baccarat
+  baccarat,
+  makao,
 };
 
 export default instructionsConfig;
