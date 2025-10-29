@@ -1,5 +1,27 @@
 import { CardKey, CardValue } from "../shared";
 
+export const getRandomCard = (): CardKey => {
+  const suits = ["H", "D", "C", "S"];
+  const values = [
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "T",
+    "J",
+    "Q",
+    "K",
+    "A",
+  ];
+  const suit = suits[Math.floor(Math.random() * suits.length)];
+  const value = values[Math.floor(Math.random() * values.length)];
+  return `${value}${suit}` as CardKey;
+};
+
 export const canPlayCard = (
   card: CardKey,
   tableCard: CardKey,
