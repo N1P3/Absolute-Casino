@@ -28,7 +28,7 @@ import {
 import { GameState } from "./types";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
-import { canPlayCard, getCardDisplayName } from "./helpers";
+import { canPlayCard, getCardDisplayName, getRandomCard } from "./helpers";
 import { POSITIONS } from "./constants";
 
 const stakes = [5, 10, 25, 50, 100, 500, 1000];
@@ -42,29 +42,6 @@ const defaultGameState: GameState = {
   tableCard: null,
   currentSuit: null,
   result: null,
-};
-
-// Pomocnicza funkcja do generowania losowej karty
-const getRandomCard = (): CardKey => {
-  const suits = ["H", "D", "C", "S"];
-  const values = [
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "T",
-    "J",
-    "Q",
-    "K",
-    "A",
-  ];
-  const suit = suits[Math.floor(Math.random() * suits.length)];
-  const value = values[Math.floor(Math.random() * values.length)];
-  return `${value}${suit}` as CardKey;
 };
 
 const Makao = () => {
