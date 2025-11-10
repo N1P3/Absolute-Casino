@@ -1,3 +1,3 @@
 package com.absoluteCasino.games.user;
 
-public record UserDetailsResponse(String name, Long balance) { }
+public record UserDetailsResponse(Integer id, String name, Long balance) { }

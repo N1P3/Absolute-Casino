@@ -1,28 +1,47 @@
 import { CardKey } from "../shared";
 
 export type MakaoResponse = {
-  is_over: boolean;
-  player_hand: CardKey[];
-  computer_hand_count: number;
-  table_card: CardKey;
-  current_suit?: string;
-  money_won: number;
-  result: Result;
+  type: string;
+  playerHand?: CardKey[];
+  opponentHandCount?: number;
+  tableCard?: CardKey;
+  currentSuit?: string | null;
+  requiredNumber?: string | null;
+  pendingDrawCount?: number;
+  drawType?: string | null;
+  pendingSkipTurns?: number;
+  currentPlayerId?: number;
+  currentPlayerName?: string;
+  gameOver?: boolean;
+  result?: "WIN" | "LOSE" | null;
+  moneyWon?: number;
+  message?: string;
+  players?: Array<{
+    userId: number;
+    userName: string;
+    handCount: number;
+    isCurrent: boolean;
+  }>;
+
+export type ErrorResponse = {
+  Type: string;
+  Message: string;
 };
 
-export enum Result {
-  WIN = "WIN",
-  LOST = "LOST",
-  DRAW = "DRAW",
-}
-
-export type State = "idle" | "dealing" | "playing" | "computer_turn" | "end";
+export type State = "idle" | "waiting" | "dealing" | "playing" | "end";
 
 export type GameState = {
   state: State;
   playerHand: CardKey[];
-  computerHandCount: number;
+  opponentHandCount: number;
   tableCard: CardKey | null;
   currentSuit: string | null;
+  requiredNumber: string | null;
+  pendingDrawCount: number;
+  drawType: string | null;
+  pendingSkipTurns: number;
+  currentPlayerId: number | null;
+  isMyTurn: boolean;
   result: string | null;
+  moneyWon: number;
 };

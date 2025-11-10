@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState } from "react";
+import React, { useRef, useMemo, useState, useEffect, useCallback } from "react";
 import {
   Stage,
   Sprite,
@@ -24,24 +24,32 @@ import {
   RenderCustomPixiElement,
   useContainerSize,
   waitFor,
+  websocketRequest,
 } from "@/lib/utils";
-import { GameState } from "./types";
+import { GameState, MakaoResponse, ErrorResponse } from "./types";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
-import { canPlayCard, getCardDisplayName, getRandomCard } from "./helpers";
+import { canPlayCard, getCardDisplayName, getSuitSymbol } from "./helpers";
 import { POSITIONS } from "./constants";
 
 const stakes = [5, 10, 25, 50, 100, 500, 1000];
 const PLAYER_CARD_SPACING = 100;
-const COMPUTER_CARD_SPACING = 80;
+const OPPONENT_CARD_SPACING = 80;
 
 const defaultGameState: GameState = {
   state: "idle",
   playerHand: [],
-  computerHandCount: 0,
+  opponentHandCount: 0,
   tableCard: null,
   currentSuit: null,
+  requiredNumber: null,
+  pendingDrawCount: 0,
+  drawType: null,
+  pendingSkipTurns: 0,
+  currentPlayerId: null,
+  isMyTurn: false,
   result: null,
+  moneyWon: 0,
 };
 
 const Makao = () => {
@@ -68,27 +76,29 @@ const Inner = ({
   const app = useRef<Application>();
   const containerRef = useRef<HTMLDivElement>(null);
   const gameContainer = useRef<PixiContainer>();
+  const ws = useRef<WebSocket>();
 
   const cards = useRef<{
     playerCards: CardRef[];
-    computerCards: CardRef[];
+    opponentCards: CardRef[];
     tableCard: CardRef | null;
-  }>({ playerCards: [], computerCards: [], tableCard: null });
+  }>({ playerCards: [], opponentCards: [], tableCard: null });
 
   const root = useRef<ReactPixiRoot>();
 
-  const [gameState, _setGameState] = useState<GameState>(defaultGameState);
-  const [computerHand, setComputerHand] = useState<CardKey[]>([]); // Dodane: rzeczywiste karty komputera
-  const { balance } = useAuth();
+  const [gameState, setGameState] = useState<GameState>(defaultGameState);
+  const gameStateRef = useRef<GameState>(defaultGameState);
+  const { balance, user } = useAuth();
   const { width, height } = useContainerSize(containerRef);
   const { toast } = useToast();
   const [stake, setStake] = useState(5);
   const [selectedCard, setSelectedCard] = useState<number | null>(null);
   const [suitSelectorVisible, setSuitSelectorVisible] = useState(false);
+  const [numberSelectorVisible, setNumberSelectorVisible] = useState(false);
 
-  const setGameState = (state: Partial<GameState>) => {
-    _setGameState((prev) => ({ ...prev, ...state }));
-  };
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   const scale = useMemo(() => {
     return Math.min(
@@ -99,7 +109,7 @@ const Inner = ({
 
   const dealCard = async (
     cardKey: CardKey,
-    position: "player" | "computer" | "table",
+    position: "player" | "opponent" | "table",
     flip: boolean,
     index?: number
   ) => {
@@ -122,11 +132,11 @@ const Inner = ({
           : cards.current.playerCards.length * PLAYER_CARD_SPACING;
       targetX = POSITIONS.playerHand.x * scale + offset * scale;
       targetY = POSITIONS.playerHand.y * scale;
-    } else if (position === "computer") {
+    } else if (position === "opponent") {
       const offset =
         index !== undefined
-          ? index * COMPUTER_CARD_SPACING
-          : cards.current.computerCards.length * COMPUTER_CARD_SPACING;
+          ? index * OPPONENT_CARD_SPACING
+          : cards.current.opponentCards.length * OPPONENT_CARD_SPACING;
       targetX = POSITIONS.computerHand.x * scale + offset * scale;
       targetY = POSITIONS.computerHand.y * scale;
     } else if (position === "table") {
@@ -151,263 +161,228 @@ const Inner = ({
         );
         card.spriteRef.current?.destroy();
       });
-    cards.current = { playerCards: [], computerCards: [], tableCard: null };
-    setComputerHand([]); // Reset ręki komputera
+    cards.current = { playerCards: [], opponentCards: [], tableCard: null };
   };
 
-  const startGame = async () => {
+  const dealInitialCards = async (
+    playerHand: CardKey[],
+    opponentCount: number,
+    tableCard: CardKey
+  ) => {
     clearCards();
-    setGameState({ ...defaultGameState, state: "dealing" });
+    setGameState(prev => ({ ...prev, state: "dealing" }));
 
-    // Symulacja rozdania kart (mockup bez backendu)
     await waitFor(300);
 
-    // Rozdaj 5 losowych kart graczowi
-    const mockPlayerCards: CardKey[] = [];
-    for (let i = 0; i < 5; i++) {
-      const randomCard = getRandomCard();
-      mockPlayerCards.push(randomCard);
-      const cardRef = await dealCard(randomCard, "player", true, i);
+    for (let i = 0; i < playerHand.length; i++) {
+      const cardRef = await dealCard(playerHand[i], "player", true, i);
       cards.current.playerCards.push(cardRef.current!);
       await waitFor(200);
     }
 
-    // Rozdaj 5 kart komputerowi (zakryte) - wygeneruj rzeczywiste karty
-    const mockComputerCards: CardKey[] = [];
-    for (let i = 0; i < 5; i++) {
-      const randomCard = getRandomCard();
-      mockComputerCards.push(randomCard);
-      const cardRef = await dealCard(randomCard, "computer", false, i);
-      cards.current.computerCards.push(cardRef.current!);
+    for (let i = 0; i < opponentCount; i++) {
+      const cardRef = await dealCard("BB", "opponent", false, i);
+      cards.current.opponentCards.push(cardRef.current!);
       await waitFor(200);
     }
-    setComputerHand(mockComputerCards);
 
-    // Połóż losową kartę na stole
-    const mockTableCard: CardKey = getRandomCard();
-    const tableCardRef = await dealCard(mockTableCard, "table", true);
+    const tableCardRef = await dealCard(tableCard, "table", true);
     cards.current.tableCard = tableCardRef.current!;
 
-    setGameState({
-      state: "playing",
-      playerHand: mockPlayerCards,
-      computerHandCount: 5,
-      tableCard: mockTableCard,
-      currentSuit: null,
-    });
+    setGameState(prev => ({ ...prev, state: "playing" }));
   };
 
-  const playCard = async (cardIndex: number, chosenSuit?: string) => {
-    if (gameState.state !== "playing") return;
 
-    const card = gameState.playerHand[cardIndex];
-    if (
-      !gameState.tableCard ||
-      !canPlayCard(card, gameState.tableCard, gameState.currentSuit)
-    ) {
-      toast({
-        title: "Błąd",
-        description: "Nie możesz zagrać tej karty!",
-        variant: "destructive",
-      });
-      return;
+  const updateCards = async (response: MakaoResponse) => {
+    const currentState = gameStateRef.current;
+
+    if (response.playerHand && JSON.stringify(response.playerHand) !== JSON.stringify(currentState.playerHand)) {
+      for (const card of cards.current.playerCards) {
+        await card.moveTo(new Point(width / 2, height + 200));
+        card.spriteRef.current?.destroy();
+      }
+      cards.current.playerCards = [];
+
+      for (let i = 0; i < response.playerHand.length; i++) {
+        const cardRef = await dealCard(response.playerHand[i], "player", true, i);
+        cards.current.playerCards.push(cardRef.current!);
+      }
     }
 
-    setGameState({ state: "computer_turn" });
+    if (response.opponentHandCount !== undefined && response.opponentHandCount !== currentState.opponentHandCount) {
+      const diff = response.opponentHandCount - cards.current.opponentCards.length;
 
-    // Przenieś kartę gracza na stół
-    const oldTableCard = cards.current.tableCard;
-    if (oldTableCard) {
-      await oldTableCard.moveTo(new Point(width / 2, height + 200));
-      oldTableCard.spriteRef.current?.destroy();
+      if (diff > 0) {
+        for (let i = 0; i < diff; i++) {
+          const cardRef = await dealCard("BB", "opponent", false, cards.current.opponentCards.length);
+          cards.current.opponentCards.push(cardRef.current!);
+        }
+      } else if (diff < 0) {
+        for (let i = 0; i < Math.abs(diff); i++) {
+          const card = cards.current.opponentCards.pop();
+          if (card) {
+            await card.moveTo(new Point(width / 2, height + 200));
+            card.spriteRef.current?.destroy();
+          }
+        }
+      }
     }
 
-    const playerCard = cards.current.playerCards[cardIndex];
-    await playerCard.moveTo(
-      new Point(POSITIONS.table.x * scale, POSITIONS.table.y * scale)
-    );
-    cards.current.tableCard = playerCard;
-    cards.current.playerCards.splice(cardIndex, 1);
-
-    const newPlayerHand = [...gameState.playerHand];
-    newPlayerHand.splice(cardIndex, 1);
-
-    // Jeśli zagrany As lub Joker i wybrano kolor
-    let newSuit = gameState.currentSuit;
-    if ((card[0] === "A" || card[0] === "J") && chosenSuit) {
-      newSuit = chosenSuit;
-    } else {
-      newSuit = null;
-    }
-
-    setGameState({
-      playerHand: newPlayerHand,
-      tableCard: card,
-      currentSuit: newSuit,
-    });
-
-    // Przemieść pozostałe karty gracza
-    for (let i = 0; i < cards.current.playerCards.length; i++) {
-      const cardRef = cards.current.playerCards[i];
-      await cardRef.moveTo(
-        new Point(
-          POSITIONS.playerHand.x * scale + i * PLAYER_CARD_SPACING * scale,
-          POSITIONS.playerHand.y * scale
-        )
-      );
-    }
-
-    // Sprawdź czy gracz wygrał
-    if (newPlayerHand.length === 0) {
-      await waitFor(1000);
-      setGameState({
-        state: "end",
-        result: "WYGRANA!",
-      });
-      return;
-    }
-
-    // Tura komputera (mockup)
-    await waitFor(1000);
-    await computerTurn(card, newSuit);
-  };
-
-  const computerTurn = async (
-    _lastPlayedCard: CardKey,
-    _currentSuit: string | null
-  ) => {
-    // Mockup tury komputera - komputer zagrywa losową kartę lub dobiera
-    const shouldPlay = Math.random() > 0.3; // 70% szans na zagranie karty
-
-    if (
-      shouldPlay &&
-      gameState.computerHandCount > 0 &&
-      computerHand.length > 0
-    ) {
-      // Komputer gra kartę
-      const playedCardKey = computerHand[0]; // Weź pierwszą kartę z ręki komputera
-      const computerCard = cards.current.computerCards[0];
+    if (response.tableCard && response.tableCard !== currentState.tableCard) {
       const oldTableCard = cards.current.tableCard;
-
       if (oldTableCard) {
         await oldTableCard.moveTo(new Point(width / 2, height + 200));
         oldTableCard.spriteRef.current?.destroy();
       }
 
-      await computerCard.setFacing("front");
-      await waitFor(300);
-      await computerCard.moveTo(
-        new Point(POSITIONS.table.x * scale, POSITIONS.table.y * scale)
-      );
+      const tableCardRef = await dealCard(response.tableCard, "table", true);
+      cards.current.tableCard = tableCardRef.current!;
+    }
+  };
 
-      cards.current.tableCard = computerCard;
-      cards.current.computerCards.splice(0, 1);
+  const updateGameState = useCallback(async (response: MakaoResponse) => {
+    console.log("updateGameState called with:", response);
+    console.log("User object from auth:", user);
 
-      // Usuń kartę z ręki komputera
-      const newComputerHand = [...computerHand];
-      newComputerHand.splice(0, 1);
-      setComputerHand(newComputerHand);
+    if (!response.playerHand || !response.tableCard) {
+      console.error("Missing required data - playerHand:", response.playerHand, "tableCard:", response.tableCard);
+      return;
+    }
 
-      // Przemieść pozostałe karty komputera
-      for (let i = 0; i < cards.current.computerCards.length; i++) {
-        const cardRef = cards.current.computerCards[i];
-        await cardRef.moveTo(
-          new Point(
-            POSITIONS.computerHand.x * scale +
-              i * COMPUTER_CARD_SPACING * scale,
-            POSITIONS.computerHand.y * scale
-          )
-        );
+    const isMyTurn = user?.id === response.currentPlayerId;
+    console.log("Is my turn:", isMyTurn, "My ID:", user?.id, "Current player ID:", response.currentPlayerId);
+
+    const currentState = gameStateRef.current;
+
+    setGameState(prev => ({
+      ...prev,
+      state: "playing",
+      playerHand: response.playerHand!,
+      opponentHandCount: response.opponentHandCount || 0,
+      tableCard: response.tableCard!,
+      currentSuit: response.currentSuit || null,
+      requiredNumber: response.requiredNumber || null,
+      pendingDrawCount: response.pendingDrawCount || 0,
+      drawType: response.drawType || null,
+      pendingSkipTurns: response.pendingSkipTurns || 0,
+      currentPlayerId: response.currentPlayerId || null,
+      isMyTurn,
+    }));
+
+    if (isMyTurn && response.pendingSkipTurns && response.pendingSkipTurns > 0) {
+      const hasFour = response.playerHand!.some(card => card[0] === '4');
+
+      if (!hasFour) {
+        setTimeout(() => {
+          if (ws.current) {
+            ws.current.send(JSON.stringify({
+              command: "skip_turn",
+            }));
+          }
+        }, 1500);
       }
+    }
 
-      const newComputerHandCount = gameState.computerHandCount - 1;
-
-      // Sprawdź czy komputer wygrał
-      if (newComputerHandCount === 0) {
-        await waitFor(1000);
-        setGameState({
-          state: "end",
-          computerHandCount: newComputerHandCount,
-          tableCard: playedCardKey, // Użyj rzeczywistej karty
-          currentSuit: null,
-          result: "PRZEGRANA!",
-        });
-        return;
-      }
-
-      setGameState({
-        state: "playing",
-        computerHandCount: newComputerHandCount,
-        tableCard: playedCardKey, // Użyj rzeczywistej karty
-        currentSuit: null, // Komputer nie wybiera koloru w mockupie
-      });
+    if (currentState.state === "waiting" || currentState.state === "idle") {
+      await dealInitialCards(response.playerHand!, response.opponentHandCount || 0, response.tableCard!);
     } else {
-      // Komputer dobiera kartę
+      await updateCards(response);
+    }
+  }, [user]);
+
+  const handleGameOver = useCallback(async (response: MakaoResponse) => {
+    await waitFor(1000);
+
+    setGameState(prev => ({
+      ...prev,
+      state: "end",
+      result: response.result === "WIN" ? "WYGRANA!" : "PRZEGRANA!",
+      moneyWon: response.moneyWon || 0,
+      opponentHandCount: response.opponentHandCount || 0,
+    }));
+
+    toast({
+      title: response.result === "WIN" ? "Zwycięstwo!" : "Porażka",
+      description: response.result === "WIN"
+        ? `Wygrałeś ${response.moneyWon || 0} żetonów!`
+        : "Może następnym razem...",
+      variant: response.result === "WIN" ? "default" : "destructive",
+    });
+  }, [toast]);
+
+  const joinRoom = async () => {
+    if (!ws.current) {
       toast({
-        title: "Komputer dobiera kartę",
-        description: "Komputer nie może zagrać karty i dobiera z talii.",
+        title: "Błąd",
+        description: "Brak połączenia z serwerem",
+        variant: "destructive",
       });
+      return;
+    }
 
-      const newCard = getRandomCard();
-      const newCardRef = await dealCard(
-        newCard,
-        "computer",
-        false,
-        cards.current.computerCards.length
-      );
-      cards.current.computerCards.push(newCardRef.current!);
-
-      // Dodaj kartę do ręki komputera
-      const newComputerHand = [...computerHand, newCard];
-      setComputerHand(newComputerHand);
-
-      setGameState({
-        state: "playing",
-        computerHandCount: gameState.computerHandCount + 1,
+    try {
+      await websocketRequest(ws.current, {
+        command: "join_room",
+        bet: stake,
+      });
+    } catch (error) {
+      const err = error as ErrorResponse;
+      toast({
+        title: "Błąd",
+        description: err.Message,
+        variant: "destructive",
       });
     }
   };
 
-  const drawCard = async () => {
-    if (gameState.state !== "playing") return;
+  const startGame = () => {
+    if (!ws.current) return;
+    ws.current.send(JSON.stringify({
+      command: "start_game",
+    }));
+  };
 
-    setGameState({ state: "computer_turn" });
+  const playCard = (cardIndex: number, chosenSuit?: string, chosenNumber?: string, chosenValue?: string) => {
+    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
+    const payload: any = {
+      command: "play_card",
+      card_index: cardIndex,
+    };
+    if (chosenSuit) payload.chosen_suit = chosenSuit;
+    if (chosenNumber) payload.chosen_number = chosenNumber;
+    if (chosenValue) payload.chosen_value = chosenValue;
+    ws.current.send(JSON.stringify(payload));
+  };
 
-    toast({
-      title: "Dobranie karty",
-      description: "Dobierasz kartę z talii.",
-    });
+  const drawCard = () => {
+    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
+    ws.current.send(JSON.stringify({
+      command: "draw_card",
+    }));
+  };
 
-    // Mockup - dodaj losową kartę do ręki gracza
-    const newCard: CardKey = getRandomCard();
-    const newCardRef = await dealCard(
-      newCard,
-      "player",
-      true,
-      cards.current.playerCards.length
-    );
-    cards.current.playerCards.push(newCardRef.current!);
-
-    const newPlayerHand = [...gameState.playerHand, newCard];
-    setGameState({
-      playerHand: newPlayerHand,
-    });
-
-    await waitFor(500);
-
-    // Tura komputera
-    if (gameState.tableCard) {
-      await computerTurn(gameState.tableCard, gameState.currentSuit);
-    }
+  const skipTurn = () => {
+    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
+    ws.current.send(JSON.stringify({
+      command: "skip_turn",
+    }));
   };
 
   const handleCardClick = (index: number) => {
+    if (!gameState.isMyTurn || !gameState.tableCard) return;
+
     const card = gameState.playerHand[index];
-    if (card[0] === "A" || card[0] === "J") {
-      // Jeśli As lub Joker, pokaż selektor koloru
+    const cardValue = card[0];
+
+    if (cardValue === "A") {
       setSelectedCard(index);
       setSuitSelectorVisible(true);
-    } else {
+    }
+    else if (cardValue === "J") {
+      setSelectedCard(index);
+      setNumberSelectorVisible(true);
+    }
+    else {
       playCard(index);
     }
   };
@@ -420,6 +395,15 @@ const Inner = ({
     }
   };
 
+  const handleNumberSelection = (number: string) => {
+    if (selectedCard !== null) {
+      playCard(selectedCard, undefined, number);
+      setNumberSelectorVisible(false);
+      setSelectedCard(null);
+    }
+  };
+
+
   const increaseStake = () => {
     const index = stakes.indexOf(stake);
     if (index === stakes.length - 1) return;
@@ -431,6 +415,71 @@ const Inner = ({
     if (index === 0) return;
     setStake(stakes[index - 1]);
   };
+
+  useEffect(() => {
+    console.log("Connecting to Makao WebSocket...");
+    const socket = new WebSocket("ws://localhost:8081/ws/makao");
+    socket.onopen = () => {
+      console.log("Makao WebSocket connected");
+      ws.current = socket;
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as MakaoResponse | ErrorResponse;
+
+        if ("Type" in data && data.Type === "ERROR") {
+          toast({
+            title: "Błąd",
+            description: data.Message,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const response = data as MakaoResponse;
+
+        switch (response.type) {
+          case "CONNECTED":
+            console.log("Connected to Makao server");
+            break;
+          case "JOINED_ROOM":
+            toast({
+              title: "Pokój",
+              description: response.message || "Dołączono do pokoju",
+            });
+            setGameState(prev => ({ ...prev, state: "waiting" }));
+            break;
+          case "GAME_STARTED":
+          case "GAME_STATE":
+            updateGameState(response);
+            break;
+          case "GAME_OVER":
+            handleGameOver(response);
+            break;
+        }
+      } catch (error) {
+        console.error("Error parsing WebSocket message:", error);
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      toast({
+        title: "Błąd połączenia",
+        description: "Nie można połączyć się z serwerem",
+        variant: "destructive",
+      });
+    };
+
+    socket.onclose = () => {
+      console.log("Makao WebSocket disconnected");
+    };
+
+    return () => {
+      socket.close();
+    };
+  }, [updateGameState, handleGameOver, toast]);
 
   return (
     <div>
@@ -488,10 +537,10 @@ const Inner = ({
                   ))}
                 </Container>
 
-                {/* Liczba kart komputera */}
-                {gameState.computerHandCount > 0 && (
+                {/* Opponent card count */}
+                {gameState.opponentHandCount > 0 && (
                   <Text
-                    text={`Karty komputera: ${gameState.computerHandCount}`}
+                    text={`Karty przeciwnika: ${gameState.opponentHandCount}`}
                     x={POSITIONS.computerHand.x * scale}
                     y={(POSITIONS.computerHand.y - 100) * scale}
                     anchor={0}
@@ -507,7 +556,7 @@ const Inner = ({
                   />
                 )}
 
-                {/* Aktualna karta na stole */}
+                {/* Current table card */}
                 {gameState.tableCard && (
                   <Text
                     text={`Stół: ${getCardDisplayName(gameState.tableCard)}`}
@@ -526,10 +575,10 @@ const Inner = ({
                   />
                 )}
 
-                {/* Wybrany kolor */}
+                {/* Active suit requirement */}
                 {gameState.currentSuit && (
                   <Text
-                    text={`Wymagany kolor: ${gameState.currentSuit === "H" ? "♥" : gameState.currentSuit === "D" ? "♦" : gameState.currentSuit === "C" ? "♣" : "♠"}`}
+                    text={`Wymagany kolor: ${getSuitSymbol(gameState.currentSuit)}`}
                     x={POSITIONS.table.x * scale}
                     y={(POSITIONS.table.y + 200) * scale}
                     anchor={0.5}
@@ -545,7 +594,83 @@ const Inner = ({
                   />
                 )}
 
-                {/* Wynik gry */}
+                {/* Required number (after Jack) */}
+                {gameState.requiredNumber && (
+                  <Text
+                    text={`Wymagana liczba: ${gameState.requiredNumber === "T" ? "10" : gameState.requiredNumber}`}
+                    x={POSITIONS.table.x * scale}
+                    y={(POSITIONS.table.y + 200) * scale}
+                    anchor={0.5}
+                    style={
+                      new TextStyle({
+                        fill: "cyan",
+                        stroke: "black",
+                        strokeThickness: 5,
+                        fontSize: 45,
+                        fontFamily: "Lato",
+                      })
+                    }
+                  />
+                )}
+
+                {/* Pending draw count */}
+                {gameState.pendingDrawCount > 0 && (
+                  <Text
+                    text={`Do dobrania: ${gameState.pendingDrawCount} kart (${gameState.drawType})`}
+                    x={POSITIONS.table.x * scale}
+                    y={(POSITIONS.table.y + 280) * scale}
+                    anchor={0.5}
+                    style={
+                      new TextStyle({
+                        fill: "orange",
+                        stroke: "black",
+                        strokeThickness: 5,
+                        fontSize: 40,
+                        fontFamily: "Lato",
+                      })
+                    }
+                  />
+                )}
+
+                {/* Pending skip turns */}
+                {gameState.pendingSkipTurns > 0 && (
+                  <Text
+                    text={`Pominiętych tur: ${gameState.pendingSkipTurns}`}
+                    x={POSITIONS.table.x * scale}
+                    y={(POSITIONS.table.y + 280) * scale}
+                    anchor={0.5}
+                    style={
+                      new TextStyle({
+                        fill: "magenta",
+                        stroke: "black",
+                        strokeThickness: 5,
+                        fontSize: 40,
+                        fontFamily: "Lato",
+                      })
+                    }
+                  />
+                )}
+
+                {/* Turn indicator */}
+                {gameState.state === "playing" && (
+                  <Text
+                    text={gameState.isMyTurn ? "TWOJA TURA" : "TURA PRZECIWNIKA"}
+                    x={width / 2}
+                    y={50 * scale}
+                    anchor={0.5}
+                    style={
+                      new TextStyle({
+                        fill: gameState.isMyTurn ? "lime" : "red",
+                        stroke: "black",
+                        strokeThickness: 8,
+                        fontSize: 60,
+                        fontFamily: "Lato",
+                      })
+                    }
+                  />
+                )}
+
+                {/* Game result */}
                 {gameState.result && (
                   <Text
                     text={gameState.result}
@@ -572,7 +697,7 @@ const Inner = ({
             </Container>
           </Stage>
 
-          {/* Interfejs użytkownika */}
+          {/* User Interface */}
           <div
             style={{
               position: "absolute",
@@ -621,13 +746,23 @@ const Inner = ({
                   <Button
                     size="lg"
                     className="h-[80px] text-4xl text-white"
-                    onClick={startGame}
+                    onClick={joinRoom}
                   >
-                    ROZDAJ
+                    DOŁĄCZ DO GRY
                   </Button>
                 )}
 
-                {gameState.state === "playing" && (
+                {gameState.state === "waiting" && (
+                  <Button
+                    size="lg"
+                    className="h-[80px] text-3xl text-white"
+                    onClick={startGame}
+                  >
+                    ROZPOCZNIJ GRĘ
+                  </Button>
+                )}
+
+                {gameState.state === "playing" && gameState.isMyTurn && !gameState.pendingSkipTurns && (
                   <Button
                     size="lg"
                     className="h-[80px] text-3xl text-white"
@@ -637,12 +772,19 @@ const Inner = ({
                   </Button>
                 )}
 
+                {gameState.state === "playing" && gameState.isMyTurn && gameState.pendingSkipTurns > 0 && (
+                  <div className="h-[80px] flex items-center justify-center text-white text-2xl">
+                    Automatycznie pomijanie tury...
+                  </div>
+                )}
+
                 {gameState.state === "end" && (
                   <Button
                     size="lg"
                     className="h-[80px] text-4xl text-white"
                     onClick={() => {
                       setGameState(defaultGameState);
+                      clearCards();
                     }}
                   >
                     NOWA GRA
@@ -650,20 +792,24 @@ const Inner = ({
                 )}
               </div>
 
-              {/* Karty gracza - klikalne */}
+              {/* Player cards - clickable */}
               {gameState.state === "playing" &&
                 gameState.playerHand.length > 0 && (
                   <div className="mt-4">
                     <p className="text-center text-white text-xl mb-2">
-                      Twoje karty (kliknij, aby zagrać):
+                      Twoje karty {gameState.isMyTurn ? "(kliknij, aby zagrać):" : ""}
                     </p>
                     <div className="flex gap-2 justify-center flex-wrap">
                       {gameState.playerHand.map((card, index) => {
-                        const canPlay = gameState.tableCard
+                        const canPlay = gameState.tableCard && gameState.isMyTurn
                           ? canPlayCard(
                               card,
                               gameState.tableCard,
-                              gameState.currentSuit
+                              gameState.currentSuit,
+                              gameState.requiredNumber,
+                              gameState.pendingDrawCount,
+                              gameState.drawType,
+                              gameState.pendingSkipTurns
                             )
                           : false;
                         return (
@@ -683,7 +829,7 @@ const Inner = ({
             </div>
           </div>
 
-          {/* Selektor koloru dla Asa/Jokera */}
+          {/* Suit selector for Ace */}
           {suitSelectorVisible && (
             <div
               style={{
@@ -729,6 +875,46 @@ const Inner = ({
                   variant="destructive"
                   onClick={() => {
                     setSuitSelectorVisible(false);
+                    setSelectedCard(null);
+                  }}
+                >
+                  Anuluj
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Number selector for Jack */}
+          {numberSelectorVisible && (
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                zIndex: 1000,
+              }}
+            >
+              <div className="bg-black bg-opacity-90 p-6 rounded-lg border-4 border-white">
+                <p className="text-white text-2xl mb-4 text-center">
+                  Wybierz wymaganą liczbę (5-10):
+                </p>
+                <div className="flex gap-3">
+                  {["5", "6", "7", "8", "9", "T"].map((num) => (
+                    <Button
+                      key={num}
+                      className="text-2xl h-[70px] w-[70px] bg-blue-600 hover:bg-blue-700"
+                      onClick={() => handleNumberSelection(num)}
+                    >
+                      {num === "T" ? "10" : num}
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  className="mt-4 w-full"
+                  variant="destructive"
+                  onClick={() => {
+                    setNumberSelectorVisible(false);
                     setSelectedCard(null);
                   }}
                 >

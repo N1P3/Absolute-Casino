@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 
 interface UserType {
+  id: number;
   name: string;
   balance: number;
 }
