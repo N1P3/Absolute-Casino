@@ -35,7 +35,7 @@ public class UserController {
             return null;
         }
 
-        return new UserDetailsResponse(user.getFirstName(), user.getBalance());
+        return new UserDetailsResponse(user.getId(), user.getFirstName(), user.getBalance());
     }
 
     public UserDto getUser(Authentication authentication) {
