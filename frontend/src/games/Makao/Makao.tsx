@@ -1,4 +1,10 @@
-import React, { useRef, useMemo, useState, useEffect, useCallback } from "react";
+import React, {
+  useRef,
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 import {
   Stage,
   Sprite,
@@ -33,8 +39,9 @@ import { canPlayCard, getCardDisplayName, getSuitSymbol } from "./helpers";
 import { POSITIONS } from "./constants";
 
 const stakes = [5, 10, 25, 50, 100, 500, 1000];
-const PLAYER_CARD_SPACING = 100;
-const OPPONENT_CARD_SPACING = 80;
+const PLAYER_CARD_SPACING = 60;
+const OPPONENT_CARD_SPACING = 50;
+const CARD_SCALE = 0.69;
 
 const defaultGameState: GameState = {
   state: "idle",
@@ -101,10 +108,24 @@ const Inner = ({
   }, [gameState]);
 
   const scale = useMemo(() => {
-    return Math.min(
+    const calculatedScale = Math.min(
       width / textures.background.width,
       height / textures.background.height
     );
+    console.log(
+      "Scale calculation - width:",
+      width,
+      "height:",
+      height,
+      "bg.width:",
+      textures.background.width,
+      "bg.height:",
+      textures.background.height,
+      "scale:",
+      calculatedScale
+    );
+    // Jeśli scale jest 0 lub NaN, zwróć wartość domyślną
+    return calculatedScale > 0 ? calculatedScale : 0.5;
   }, [width, height, textures.background.width, textures.background.height]);
 
   const dealCard = async (
@@ -113,13 +134,23 @@ const Inner = ({
     flip: boolean,
     index?: number
   ) => {
+    const bgWidth = textures.background.width * scale;
+    const bgHeight = textures.background.height * scale;
+
+    const deckX = POSITIONS.deck.xRatio * bgWidth;
+    const deckY = POSITIONS.deck.yRatio * bgHeight;
+
+    console.log("=== dealCard ===");
+    console.log("scale:", scale, "bgWidth:", bgWidth, "bgHeight:", bgHeight);
+    console.log("Initial position:", deckX, deckY);
+
     const ref = await RenderCustomPixiElement(gameContainer.current!, Card, {
       facing: "back",
       cardKey: cardKey,
       cardTextures: textures.cards,
-      x: POSITIONS.deck.x * scale,
-      y: POSITIONS.deck.y * scale,
-      scale: scale * 1.0,
+      x: deckX,
+      y: deckY,
+      scale: scale * CARD_SCALE,
     });
 
     let targetX = 0;
@@ -128,21 +159,24 @@ const Inner = ({
     if (position === "player") {
       const offset =
         index !== undefined
-          ? index * PLAYER_CARD_SPACING
-          : cards.current.playerCards.length * PLAYER_CARD_SPACING;
-      targetX = POSITIONS.playerHand.x * scale + offset * scale;
-      targetY = POSITIONS.playerHand.y * scale;
+          ? index * PLAYER_CARD_SPACING * scale
+          : cards.current.playerCards.length * PLAYER_CARD_SPACING * scale;
+      targetX = POSITIONS.playerHand.xRatio * bgWidth + offset;
+      targetY = POSITIONS.playerHand.yRatio * bgHeight;
     } else if (position === "opponent") {
       const offset =
         index !== undefined
-          ? index * OPPONENT_CARD_SPACING
-          : cards.current.opponentCards.length * OPPONENT_CARD_SPACING;
-      targetX = POSITIONS.computerHand.x * scale + offset * scale;
-      targetY = POSITIONS.computerHand.y * scale;
+          ? index * OPPONENT_CARD_SPACING * scale
+          : cards.current.opponentCards.length * OPPONENT_CARD_SPACING * scale;
+      targetX = POSITIONS.computerHand.xRatio * bgWidth + offset;
+      targetY = POSITIONS.computerHand.yRatio * bgHeight;
     } else if (position === "table") {
-      targetX = POSITIONS.table.x * scale;
-      targetY = POSITIONS.table.y * scale;
+      targetX = POSITIONS.table.xRatio * bgWidth - 105;
+      targetY = POSITIONS.table.yRatio * bgHeight - 125;
     }
+
+    console.log("Target position for", position, ":", targetX, targetY);
+    console.log("ref.current:", ref.current);
 
     await ref.current?.moveTo(new Point(targetX, targetY));
     if (flip) {
@@ -170,7 +204,23 @@ const Inner = ({
     tableCard: CardKey
   ) => {
     clearCards();
-    setGameState(prev => ({ ...prev, state: "dealing" }));
+    setGameState((prev) => ({ ...prev, state: "dealing" }));
+
+    // Poczekaj aż kontener będzie miał poprawne wymiary
+    let attempts = 0;
+    while ((width === 0 || height === 0) && attempts < 50) {
+      await waitFor(100);
+      attempts++;
+    }
+
+    console.log(
+      "Starting card dealing with width:",
+      width,
+      "height:",
+      height,
+      "scale:",
+      scale
+    );
 
     await waitFor(300);
 
@@ -189,14 +239,17 @@ const Inner = ({
     const tableCardRef = await dealCard(tableCard, "table", true);
     cards.current.tableCard = tableCardRef.current!;
 
-    setGameState(prev => ({ ...prev, state: "playing" }));
+    setGameState((prev) => ({ ...prev, state: "playing" }));
   };
-
 
   const updateCards = async (response: MakaoResponse) => {
     const currentState = gameStateRef.current;
 
-    if (response.playerHand && JSON.stringify(response.playerHand) !== JSON.stringify(currentState.playerHand)) {
+    if (
+      response.playerHand &&
+      JSON.stringify(response.playerHand) !==
+        JSON.stringify(currentState.playerHand)
+    ) {
       for (const card of cards.current.playerCards) {
         await card.moveTo(new Point(width / 2, height + 200));
         card.spriteRef.current?.destroy();
@@ -204,17 +257,31 @@ const Inner = ({
       cards.current.playerCards = [];
 
       for (let i = 0; i < response.playerHand.length; i++) {
-        const cardRef = await dealCard(response.playerHand[i], "player", true, i);
+        const cardRef = await dealCard(
+          response.playerHand[i],
+          "player",
+          true,
+          i
+        );
         cards.current.playerCards.push(cardRef.current!);
       }
     }
 
-    if (response.opponentHandCount !== undefined && response.opponentHandCount !== currentState.opponentHandCount) {
-      const diff = response.opponentHandCount - cards.current.opponentCards.length;
+    if (
+      response.opponentHandCount !== undefined &&
+      response.opponentHandCount !== currentState.opponentHandCount
+    ) {
+      const diff =
+        response.opponentHandCount - cards.current.opponentCards.length;
 
       if (diff > 0) {
         for (let i = 0; i < diff; i++) {
-          const cardRef = await dealCard("BB", "opponent", false, cards.current.opponentCards.length);
+          const cardRef = await dealCard(
+            "BB",
+            "opponent",
+            false,
+            cards.current.opponentCards.length
+          );
           cards.current.opponentCards.push(cardRef.current!);
         }
       } else if (diff < 0) {
@@ -240,75 +307,104 @@ const Inner = ({
     }
   };
 
-  const updateGameState = useCallback(async (response: MakaoResponse) => {
-    console.log("updateGameState called with:", response);
-    console.log("User object from auth:", user);
+  const updateGameState = useCallback(
+    async (response: MakaoResponse) => {
+      console.log("updateGameState called with:", response);
+      console.log("User object from auth:", user);
 
-    if (!response.playerHand || !response.tableCard) {
-      console.error("Missing required data - playerHand:", response.playerHand, "tableCard:", response.tableCard);
-      return;
-    }
-
-    const isMyTurn = user?.id === response.currentPlayerId;
-    console.log("Is my turn:", isMyTurn, "My ID:", user?.id, "Current player ID:", response.currentPlayerId);
-
-    const currentState = gameStateRef.current;
-
-    setGameState(prev => ({
-      ...prev,
-      state: "playing",
-      playerHand: response.playerHand!,
-      opponentHandCount: response.opponentHandCount || 0,
-      tableCard: response.tableCard!,
-      currentSuit: response.currentSuit || null,
-      requiredNumber: response.requiredNumber || null,
-      pendingDrawCount: response.pendingDrawCount || 0,
-      drawType: response.drawType || null,
-      pendingSkipTurns: response.pendingSkipTurns || 0,
-      currentPlayerId: response.currentPlayerId || null,
-      isMyTurn,
-    }));
-
-    if (isMyTurn && response.pendingSkipTurns && response.pendingSkipTurns > 0) {
-      const hasFour = response.playerHand!.some(card => card[0] === '4');
-
-      if (!hasFour) {
-        setTimeout(() => {
-          if (ws.current) {
-            ws.current.send(JSON.stringify({
-              command: "skip_turn",
-            }));
-          }
-        }, 1500);
+      if (!response.playerHand || !response.tableCard) {
+        console.error(
+          "Missing required data - playerHand:",
+          response.playerHand,
+          "tableCard:",
+          response.tableCard
+        );
+        return;
       }
-    }
 
-    if (currentState.state === "waiting" || currentState.state === "idle") {
-      await dealInitialCards(response.playerHand!, response.opponentHandCount || 0, response.tableCard!);
-    } else {
-      await updateCards(response);
-    }
-  }, [user]);
+      const isMyTurn = user?.id === response.currentPlayerId;
+      console.log(
+        "Is my turn:",
+        isMyTurn,
+        "My ID:",
+        user?.id,
+        "Current player ID:",
+        response.currentPlayerId
+      );
 
-  const handleGameOver = useCallback(async (response: MakaoResponse) => {
-    await waitFor(1000);
+      const currentState = gameStateRef.current;
 
-    setGameState(prev => ({
-      ...prev,
-      state: "end",
-      result: response.result === "WIN" ? "WYGRANA!" : "PRZEGRANA!",
-      moneyWon: response.moneyWon || 0,
-      opponentHandCount: response.opponentHandCount || 0,
-    }));
+      setGameState((prev) => ({
+        ...prev,
+        state: "playing",
+        playerHand: response.playerHand!,
+        opponentHandCount: response.opponentHandCount || 0,
+        tableCard: response.tableCard!,
+        currentSuit: response.currentSuit || null,
+        requiredNumber: response.requiredNumber || null,
+        pendingDrawCount: response.pendingDrawCount || 0,
+        drawType: response.drawType || null,
+        pendingSkipTurns: response.pendingSkipTurns || 0,
+        currentPlayerId: response.currentPlayerId || null,
+        isMyTurn,
+      }));
 
-    toast({
-      title: response.result === "WIN" ? "Zwycięstwo!" : "Porażka",
-      description: response.result === "WIN"
-        ? `Wygrałeś ${response.moneyWon || 0} żetonów!`
-        : "Może następnym razem...",
-      variant: response.result === "WIN" ? "default" : "destructive",
-    });
-  }, [toast]);
+      if (
+        isMyTurn &&
+        response.pendingSkipTurns &&
+        response.pendingSkipTurns > 0
+      ) {
+        const hasFour = response.playerHand!.some((card) => card[0] === "4");
+
+        if (!hasFour) {
+          setTimeout(() => {
+            if (ws.current) {
+              ws.current.send(
+                JSON.stringify({
+                  command: "skip_turn",
+                })
+              );
+            }
+          }, 1500);
+        }
+      }
+
+      if (currentState.state === "waiting" || currentState.state === "idle") {
+        await dealInitialCards(
+          response.playerHand!,
+          response.opponentHandCount || 0,
+          response.tableCard!
+        );
+      } else {
+        await updateCards(response);
+      }
+    },
+    [user]
+  );
+
+  const handleGameOver = useCallback(
+    async (response: MakaoResponse) => {
+      await waitFor(1000);
+
+      setGameState((prev) => ({
+        ...prev,
+        state: "end",
+        result: response.result === "WIN" ? "WYGRANA!" : "PRZEGRANA!",
+        moneyWon: response.moneyWon || 0,
+        opponentHandCount: response.opponentHandCount || 0,
+      }));
+
+      toast({
+        title: response.result === "WIN" ? "Zwycięstwo!" : "Porażka",
+        description:
+          response.result === "WIN"
+            ? `Wygrałeś ${response.moneyWon || 0} żetonów!`
+            : "Może następnym razem...",
+        variant: response.result === "WIN" ? "default" : "destructive",
+      });
+    },
+    [toast]
+  );
 
   const joinRoom = async () => {
     if (!ws.current) {
@@ -337,13 +433,21 @@ const Inner = ({
 
   const startGame = () => {
     if (!ws.current) return;
-    ws.current.send(JSON.stringify({
-      command: "start_game",
-    }));
+    ws.current.send(
+      JSON.stringify({
+        command: "start_game",
+      })
+    );
   };
 
-  const playCard = (cardIndex: number, chosenSuit?: string, chosenNumber?: string, chosenValue?: string) => {
-    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
+  const playCard = (
+    cardIndex: number,
+    chosenSuit?: string,
+    chosenNumber?: string,
+    chosenValue?: string
+  ) => {
+    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn)
+      return;
     const payload: any = {
       command: "play_card",
       card_index: cardIndex,
@@ -355,17 +459,23 @@ const Inner = ({
   };
 
   const drawCard = () => {
-    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
-    ws.current.send(JSON.stringify({
-      command: "draw_card",
-    }));
+    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn)
+      return;
+    ws.current.send(
+      JSON.stringify({
+        command: "draw_card",
+      })
+    );
   };
 
   const skipTurn = () => {
-    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
-    ws.current.send(JSON.stringify({
-      command: "skip_turn",
-    }));
+    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn)
+      return;
+    ws.current.send(
+      JSON.stringify({
+        command: "skip_turn",
+      })
+    );
   };
 
   const handleCardClick = (index: number) => {
@@ -377,12 +487,10 @@ const Inner = ({
     if (cardValue === "A") {
       setSelectedCard(index);
       setSuitSelectorVisible(true);
-    }
-    else if (cardValue === "J") {
+    } else if (cardValue === "J") {
       setSelectedCard(index);
       setNumberSelectorVisible(true);
-    }
-    else {
+    } else {
       playCard(index);
     }
   };
@@ -402,7 +510,6 @@ const Inner = ({
       setSelectedCard(null);
     }
   };
-
 
   const increaseStake = () => {
     const index = stakes.indexOf(stake);
@@ -448,7 +555,7 @@ const Inner = ({
               title: "Pokój",
               description: response.message || "Dołączono do pokoju",
             });
-            setGameState(prev => ({ ...prev, state: "waiting" }));
+            setGameState((prev) => ({ ...prev, state: "waiting" }));
             break;
           case "GAME_STARTED":
           case "GAME_STATE":
@@ -480,6 +587,28 @@ const Inner = ({
       socket.close();
     };
   }, [updateGameState, handleGameOver, toast]);
+
+  // Automatyczne przełączenie na pełny ekran przy montowaniu komponentu
+  useEffect(() => {
+    const enterFullscreen = async () => {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (error) {
+        console.log("Nie można przełączyć na pełny ekran:", error);
+      }
+    };
+
+    enterFullscreen();
+
+    // Opcjonalnie: wyjście z pełnego ekranu przy odmontowaniu
+    return () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+  }, []);
 
   return (
     <div>
@@ -520,8 +649,8 @@ const Inner = ({
                   scale={scale}
                 />
                 <Container
-                  x={POSITIONS.deck.x * scale}
-                  y={POSITIONS.deck.y * scale}
+                  x={POSITIONS.deck.xRatio * textures.background.width * scale}
+                  y={POSITIONS.deck.yRatio * textures.background.height * scale}
                   name="deck"
                 >
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -532,7 +661,7 @@ const Inner = ({
                       cardTextures={textures.cards}
                       x={i * 2}
                       y={-i * 2}
-                      scale={scale * 1.0}
+                      scale={scale * CARD_SCALE}
                     />
                   ))}
                 </Container>
@@ -540,16 +669,25 @@ const Inner = ({
                 {/* Opponent card count */}
                 {gameState.opponentHandCount > 0 && (
                   <Text
-                    text={`Karty przeciwnika: ${gameState.opponentHandCount}`}
-                    x={POSITIONS.computerHand.x * scale}
-                    y={(POSITIONS.computerHand.y - 100) * scale}
+                    text={`Przeciwnik: ${gameState.opponentHandCount}`}
+                    x={
+                      POSITIONS.computerHand.xRatio *
+                      textures.background.width *
+                      scale
+                    }
+                    y={
+                      POSITIONS.computerHand.yRatio *
+                        textures.background.height *
+                        scale -
+                      90
+                    }
                     anchor={0}
                     style={
                       new TextStyle({
                         fill: "white",
                         stroke: "black",
-                        strokeThickness: 5,
-                        fontSize: 40,
+                        strokeThickness: 4,
+                        fontSize: 32,
                         fontFamily: "Lato",
                       })
                     }
@@ -560,8 +698,15 @@ const Inner = ({
                 {gameState.tableCard && (
                   <Text
                     text={`Stół: ${getCardDisplayName(gameState.tableCard)}`}
-                    x={POSITIONS.table.x * scale}
-                    y={(POSITIONS.table.y - 150) * scale}
+                    x={
+                      POSITIONS.table.xRatio * textures.background.width * scale
+                    }
+                    y={
+                      POSITIONS.table.yRatio *
+                        textures.background.height *
+                        scale -
+                      150
+                    }
                     anchor={0.5}
                     style={
                       new TextStyle({
@@ -579,8 +724,15 @@ const Inner = ({
                 {gameState.currentSuit && (
                   <Text
                     text={`Wymagany kolor: ${getSuitSymbol(gameState.currentSuit)}`}
-                    x={POSITIONS.table.x * scale}
-                    y={(POSITIONS.table.y + 200) * scale}
+                    x={
+                      POSITIONS.table.xRatio * textures.background.width * scale
+                    }
+                    y={
+                      (POSITIONS.table.yRatio * textures.background.height +
+                        200) *
+                        scale -
+                      120 * scale
+                    }
                     anchor={0.5}
                     style={
                       new TextStyle({
@@ -598,8 +750,14 @@ const Inner = ({
                 {gameState.requiredNumber && (
                   <Text
                     text={`Wymagana liczba: ${gameState.requiredNumber === "T" ? "10" : gameState.requiredNumber}`}
-                    x={POSITIONS.table.x * scale}
-                    y={(POSITIONS.table.y + 200) * scale}
+                    x={
+                      POSITIONS.table.xRatio * textures.background.width * scale
+                    }
+                    y={
+                      (POSITIONS.table.yRatio * textures.background.height +
+                        200) *
+                      scale
+                    }
                     anchor={0.5}
                     style={
                       new TextStyle({
@@ -617,8 +775,15 @@ const Inner = ({
                 {gameState.pendingDrawCount > 0 && (
                   <Text
                     text={`Do dobrania: ${gameState.pendingDrawCount} kart (${gameState.drawType})`}
-                    x={POSITIONS.table.x * scale}
-                    y={(POSITIONS.table.y + 280) * scale}
+                    x={
+                      POSITIONS.table.xRatio * textures.background.width * scale
+                    }
+                    y={
+                      (POSITIONS.table.yRatio * textures.background.height +
+                        280) *
+                        scale -
+                      100 * scale
+                    }
                     anchor={0.5}
                     style={
                       new TextStyle({
@@ -636,8 +801,15 @@ const Inner = ({
                 {gameState.pendingSkipTurns > 0 && (
                   <Text
                     text={`Pominiętych tur: ${gameState.pendingSkipTurns}`}
-                    x={POSITIONS.table.x * scale}
-                    y={(POSITIONS.table.y + 280) * scale}
+                    x={
+                      POSITIONS.table.xRatio * textures.background.width * scale
+                    }
+                    y={
+                      (POSITIONS.table.yRatio * textures.background.height +
+                        280) *
+                        scale -
+                      800 * scale
+                    }
                     anchor={0.5}
                     style={
                       new TextStyle({
@@ -654,7 +826,9 @@ const Inner = ({
                 {/* Turn indicator */}
                 {gameState.state === "playing" && (
                   <Text
-                    text={gameState.isMyTurn ? "TWOJA TURA" : "TURA PRZECIWNIKA"}
+                    text={
+                      gameState.isMyTurn ? "TWOJA TURA" : "TURA PRZECIWNIKA"
+                    }
                     x={width / 2}
                     y={50 * scale}
                     anchor={0.5}
@@ -762,21 +936,25 @@ const Inner = ({
                   </Button>
                 )}
 
-                {gameState.state === "playing" && gameState.isMyTurn && !gameState.pendingSkipTurns && (
-                  <Button
-                    size="lg"
-                    className="h-[80px] text-3xl text-white"
-                    onClick={drawCard}
-                  >
-                    DOBIERZ KARTĘ
-                  </Button>
-                )}
+                {gameState.state === "playing" &&
+                  gameState.isMyTurn &&
+                  !gameState.pendingSkipTurns && (
+                    <Button
+                      size="lg"
+                      className="h-[80px] text-3xl text-white"
+                      onClick={drawCard}
+                    >
+                      DOBIERZ KARTĘ
+                    </Button>
+                  )}
 
-                {gameState.state === "playing" && gameState.isMyTurn && gameState.pendingSkipTurns > 0 && (
-                  <div className="h-[80px] flex items-center justify-center text-white text-2xl">
-                    Automatycznie pomijanie tury...
-                  </div>
-                )}
+                {gameState.state === "playing" &&
+                  gameState.isMyTurn &&
+                  gameState.pendingSkipTurns > 0 && (
+                    <div className="h-[80px] flex items-center justify-center text-white text-2xl">
+                      Automatycznie pomijanie tury...
+                    </div>
+                  )}
 
                 {gameState.state === "end" && (
                   <Button
@@ -797,21 +975,23 @@ const Inner = ({
                 gameState.playerHand.length > 0 && (
                   <div className="mt-4">
                     <p className="text-center text-white text-xl mb-2">
-                      Twoje karty {gameState.isMyTurn ? "(kliknij, aby zagrać):" : ""}
+                      Twoje karty{" "}
+                      {gameState.isMyTurn ? "(kliknij, aby zagrać):" : ""}
                     </p>
                     <div className="flex gap-2 justify-center flex-wrap">
                       {gameState.playerHand.map((card, index) => {
-                        const canPlay = gameState.tableCard && gameState.isMyTurn
-                          ? canPlayCard(
-                              card,
-                              gameState.tableCard,
-                              gameState.currentSuit,
-                              gameState.requiredNumber,
-                              gameState.pendingDrawCount,
-                              gameState.drawType,
-                              gameState.pendingSkipTurns
-                            )
-                          : false;
+                        const canPlay =
+                          gameState.tableCard && gameState.isMyTurn
+                            ? canPlayCard(
+                                card,
+                                gameState.tableCard,
+                                gameState.currentSuit,
+                                gameState.requiredNumber,
+                                gameState.pendingDrawCount,
+                                gameState.drawType,
+                                gameState.pendingSkipTurns
+                              )
+                            : false;
                         return (
                           <Button
                             key={index}
