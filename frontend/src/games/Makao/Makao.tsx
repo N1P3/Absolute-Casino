@@ -53,6 +53,7 @@ const defaultGameState: GameState = {
   pendingDrawCount: 0,
   drawType: null,
   pendingSkipTurns: 0,
+  playerToSkip: null,
   currentPlayerId: null,
   isMyTurn: false,
   result: null,
@@ -345,14 +346,16 @@ const Inner = ({
         pendingDrawCount: response.pendingDrawCount || 0,
         drawType: response.drawType || null,
         pendingSkipTurns: response.pendingSkipTurns || 0,
+        playerToSkip: response.playerToSkip || null,
         currentPlayerId: response.currentPlayerId || null,
         isMyTurn,
       }));
 
       if (
         isMyTurn &&
-        response.pendingSkipTurns &&
-        response.pendingSkipTurns > 0
+        response.playerToSkip !== null &&
+        response.playerToSkip !== undefined &&
+        response.playerToSkip === user?.id
       ) {
         const hasFour = response.playerHand!.some((card) => card[0] === "4");
 
@@ -384,6 +387,11 @@ const Inner = ({
 
   const handleGameOver = useCallback(
     async (response: MakaoResponse) => {
+      // Update cards first before showing game over screen
+      if (response.playerHand && response.tableCard) {
+        await updateCards(response);
+      }
+
       await waitFor(1000);
 
       setGameState((prev) => ({
@@ -398,7 +406,7 @@ const Inner = ({
         title: response.result === "WIN" ? "Zwycięstwo!" : "Porażka",
         description:
           response.result === "WIN"
-            ? `Wygrałeś ${response.moneyWon || 0} żetonów!`
+            ? `Wygrałeś ${response.moneyWon || 0} PLN!`
             : "Może następnym razem...",
         variant: response.result === "WIN" ? "default" : "destructive",
       });
@@ -950,7 +958,7 @@ const Inner = ({
 
                 {gameState.state === "playing" &&
                   gameState.isMyTurn &&
-                  gameState.pendingSkipTurns > 0 && (
+                  gameState.playerToSkip === user?.id && (
                     <div className="h-[80px] flex items-center justify-center text-white text-2xl">
                       Automatycznie pomijanie tury...
                     </div>
@@ -989,7 +997,9 @@ const Inner = ({
                                 gameState.requiredNumber,
                                 gameState.pendingDrawCount,
                                 gameState.drawType,
-                                gameState.pendingSkipTurns
+                                gameState.pendingSkipTurns,
+                                gameState.playerToSkip,
+                                user?.id
                               )
                             : false;
                         return (
