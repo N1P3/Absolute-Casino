@@ -21,7 +21,8 @@ export const loadCardTextures = async () => {
     }
   }
 
-  //BB = Back Black
+
+    //BB = Back Black
   //BR = Back Red
   // cardTextures["BB"] = (await import("@/assets/cards/1B.svg?url")).default;
   // cardTextures["BR"] = (await import("@/assets/cards/2B.svg?url")).default;

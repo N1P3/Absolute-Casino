@@ -16,10 +16,16 @@ public class CardsShoe {
     public CardsShoe() {
         shoe = new LinkedList<>();
         cardsLeft = 260;
-        insertCards();
+        insertCards(NUMBER_OF_DECKS);
     }
 
-    private void insertCards() {
+    public CardsShoe(int numberOfDecks) {
+        shoe = new LinkedList<>();
+        cardsLeft = 52;
+        insertCards(1);
+    }
+
+    private void insertCards(int numberOfDecks) {
         List<String> newDeck = createDeck();
         for (int i = 0; i < NUMBER_OF_DECKS; i++) {
             shoe.addAll(newDeck);

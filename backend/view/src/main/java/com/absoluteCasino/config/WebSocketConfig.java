@@ -5,6 +5,7 @@ import com.absoluteCasino.control.games.blackjack.BlackJackWebSocketHandler;
 import com.absoluteCasino.control.games.fruitogedon.FruitsWebSocketHandler;
 import com.absoluteCasino.control.games.makao.MakaoWebSocketHandler;
 import com.absoluteCasino.control.games.mummy.MummyWebSocketHandler;
+import com.absoluteCasino.control.games.poker.HoldemWebSocketHandler;
 import com.absoluteCasino.control.user.UserBalanceWebSocketHandler;
 import com.absoluteCasino.security.JWTUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
     private final BaccaratWebSocketHandler baccaratWebSocketHandler;
     private final FruitsWebSocketHandler fruitsWebSocketHandler;
     private final MakaoWebSocketHandler makaoWebSocketHandler;
+    private final HoldemWebSocketHandler holdemWebSocketHandler;
     private final JWTUtil jwtUtil;
 
     @Autowired
@@ -32,6 +34,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
                            FruitsWebSocketHandler fruitsWebSocketHandler,
                            BaccaratWebSocketHandler baccaratWebSocketHandler,
                            MakaoWebSocketHandler makaoWebSocketHandler,
+                           HoldemWebSocketHandler holdemWebSocketHandler,
                            JWTUtil jwtUtil) {
         this.blackJackWebSocketHandler = blackJackWebSocketHandler;
         this.userBalanceWebSocketHandler = userBalanceWebSocketHandler;
@@ -39,6 +42,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         this.fruitsWebSocketHandler = fruitsWebSocketHandler;
         this.baccaratWebSocketHandler = baccaratWebSocketHandler;
         this.makaoWebSocketHandler = makaoWebSocketHandler;
+        this.holdemWebSocketHandler = holdemWebSocketHandler;
         this.jwtUtil = jwtUtil;
     }
 
@@ -65,6 +69,10 @@ public class WebSocketConfig implements WebSocketConfigurer {
                 .setAllowedOriginPatterns("*");
 
         registry.addHandler(makaoWebSocketHandler, "/ws/makao")
+                .addInterceptors(new JwtHandshakeInterceptor(jwtUtil))
+                .setAllowedOriginPatterns("*");
+
+        registry.addHandler(holdemWebSocketHandler, "/ws/holdem")
                 .addInterceptors(new JwtHandshakeInterceptor(jwtUtil))
                 .setAllowedOriginPatterns("*");
     }

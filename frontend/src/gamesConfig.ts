@@ -12,6 +12,7 @@ import Baccarat from "./games/Baccarat/Baccarat";
 const Mummy = React.lazy(() => import("./games/Mummy/Mummy"));
 const Blackjack = React.lazy(() => import("./games/Blackjack/Blackjack"));
 const Makao = React.lazy(() => import("./games/Makao/Makao"));
+const Holdem = React.lazy(() => import("./games/Holdem/Holdem"));
 
 export const config = [
   {
@@ -47,6 +48,13 @@ export const config = [
     thumbnail: makaoThumbnail,
     component: Makao,
     name: "Makao",
+    type: GameType.CARD,
+  },
+  {
+    gameId: "holdem",
+    thumbnail: makaoThumbnail,
+    component: Holdem,
+    name: "Texas Hold'em",
     type: GameType.CARD,
   },
 ] as GameConfig[];
