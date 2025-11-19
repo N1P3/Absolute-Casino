@@ -49,20 +49,6 @@ public class MakaoGameTest {
     }
 
     @Test
-    public void testJokerAlwaysPlayable() {
-        // Joker zawsze można zagrać
-        game.setTableCard("5H");
-        assertTrue(game.canPlayCard("XH", "5H", null, null));
-        game.setCurrentSuit("S");
-        assertTrue(game.canPlayCard("XD", "5H", "S", null)); // joker pod wymaganiami kolorystycznymi
-        game.setRequiredNumber('9');
-        assertTrue(game.canPlayCard("XC", "5H", null, null)); // joker pod wymaganiami liczbowymi
-        game.setDrawType("2");
-        game.setPendingDrawCount(2);
-        assertTrue(game.canPlayCard("XS", "5H", null, null)); // joker pod wymaganiami stosu dobierania
-    }
-
-    @Test
     public void testDrawStackingLogic() {
         // symulacja zagrania 2, a potem kolejnej 2
         game.setTableCard("2H");
@@ -78,9 +64,9 @@ public class MakaoGameTest {
 
     @Test
     public void testInitializeDeck() {
-        // Sprawdzenie, czy talia zawiera jokery
+        // Sprawdzenie, czy talia zawiera cztery kolory po 13 wartościach (52)
         room.initializeDeck();
-        assertEquals(56, room.getDeckSize()); // 52 + 4 jokery
+        assertEquals(52, room.getDeckSize()); // 52 karty
     }
 
     @Test
@@ -89,29 +75,29 @@ public class MakaoGameTest {
         room.initializeDeck();
         String card = room.drawCard();
         assertNotNull(card);
-        assertEquals(55, room.getDeckSize());
+        assertEquals(51, room.getDeckSize());
     }
 
     @Test
     public void testPlayerCanJoinRoom() {
-        boolean added = room.addPlayer(1, "Player1");
+        boolean added = room.addPlayer(new MakaoPlayer(1, "Player1"));
         assertTrue(added);
         assertEquals(1, room.getPlayers().size());
     }
 
     @Test
     public void testTwoPlayersCanJoinRoom() {
-        room.addPlayer(1, "Player1");
-        room.addPlayer(2, "Player2");
+        room.addPlayer(new MakaoPlayer(1, "Player1"));
+        room.addPlayer(new MakaoPlayer(2, "Player2"));
         assertTrue(room.isFull());
         assertEquals(2, room.getPlayers().size());
     }
 
     @Test
     public void testCannotAddThirdPlayer() {
-        room.addPlayer(1, "Player1");
-        room.addPlayer(2, "Player2");
-        boolean added = room.addPlayer(3, "Player3");
+        room.addPlayer(new MakaoPlayer(1, "Player1"));
+        room.addPlayer(new MakaoPlayer(2, "Player2"));
+        boolean added = room.addPlayer(new MakaoPlayer(3, "Player3"));
         assertFalse(added);
         assertEquals(2, room.getPlayers().size());
     }
@@ -121,41 +107,14 @@ public class MakaoGameTest {
         room.initializeDeck();
         String card = room.drawCard();
         assertNotNull(card);
-        assertEquals(55, room.getDeckSize());
+        assertEquals(51, room.getDeckSize());
     }
 
     @Test
     public void testRemovePlayer() {
-        room.addPlayer(1, "Player1");
+        room.addPlayer(new MakaoPlayer(1, "Player1"));
         room.removePlayer(1);
         assertTrue(room.isEmpty());
     }
-    // Updated MakaoGameTest.java additions for joker stacking
-// Add these test methods or merge into existing test class.
 
-    @Test
-    public void testJokerCanStartStackAsTwo() {
-        MakaoGame game = new MakaoGame();
-        game.setTableCard("5H");
-        // Joker playable
-        assertTrue(game.canPlayCard("XH", "5H", null, null));
-        // Simulate representation as '2' starting stack
-        game.setDrawType("2");
-        game.setPendingDrawCount(2);
-        // Now only 2 or Joker allowed
-        assertTrue(game.canPlayCard("2D", "5H", null, null));
-        assertTrue(game.canPlayCard("XD", "5H", null, null)); // joker continuation
-        assertFalse(game.canPlayCard("3D", "5H", null, null));
-    }
-
-    @Test
-    public void testJokerContinuationOnKingStack() {
-        MakaoGame game = new MakaoGame();
-        game.setTableCard("KH");
-        game.setDrawType("K");
-        game.setPendingDrawCount(5);
-        assertTrue(game.canPlayCard("KS", "KH", null, null)); // continue
-        assertTrue(game.canPlayCard("XH", "KH", null, null)); // joker allowed
-        assertFalse(game.canPlayCard("2H", "KH", null, null));
-    }
 }

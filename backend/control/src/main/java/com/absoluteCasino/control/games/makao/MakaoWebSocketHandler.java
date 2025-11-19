@@ -153,7 +153,17 @@ public class MakaoWebSocketHandler extends TextWebSocketHandler {
                 session.sendMessage(new TextMessage(response));
             }
 
-            if (shouldBroadcast && gameSession.getGameRoom() != null && gameSession.getGameRoom().isGameActive()) {
+            if (shouldBroadcast && gameSession.getGameRoom() != null) {
+                // Check if game is over and handle payouts
+                if (gameSession.getGameRoom().isGameOver()) {
+                    MakaoPlayer winner = gameSession.getGameRoom().getWinner();
+                    if (winner != null) {
+                        // Casino pays 2x winner's bet
+                        long payout = winner.getBet() * 2;
+                        balanceUpdateManager.sendBalanceUpdate(winner.getUserId(), payout);
+                        log.info("Winner " + winner.getUserId() + " receives " + payout);
+                    }
+                }
                 broadcastGameState(gameSession.getGameRoom());
             }
 
@@ -179,7 +189,7 @@ public class MakaoWebSocketHandler extends TextWebSocketHandler {
         MakaoPlayer player = new MakaoPlayer(userId, "Player" + userId);
         player.setBet(bet);
 
-        if (room.addPlayer(userId, "Player" + userId)) {
+        if (room.addPlayer(player)) {
             MakaoGameResponse response = new MakaoGameResponse();
             response.setType("JOINED_ROOM");
             response.setMessage("Dołączyłeś do pokoju. Oczekiwanie na drugiego gracza...");
@@ -350,6 +360,12 @@ public class MakaoWebSocketHandler extends TextWebSocketHandler {
                 MakaoPlayer winner = room.getWinner();
                 response.setGameOver(true);
                 response.setResult(winner != null && winner.getUserId().equals(session.getUserId()) ? "WIN" : "LOSE");
+                response.setType("GAME_OVER");
+                // Add money won for winner (net profit = winner's bet)
+                if (winner != null && winner.getUserId().equals(session.getUserId())) {
+                    // Winner gets 2x their bet, so profit is 1x bet
+                    response.setMoneyWon(winner.getBet());
+                }
             }
         }
 
