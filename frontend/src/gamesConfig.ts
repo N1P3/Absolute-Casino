@@ -5,6 +5,7 @@ import blackjackThumbnail from "./assets/blackjack/thumbnail2.png?url";
 import fruitogedonThumbnail from "./assets/fruitogedon/thumbnail.png?url";
 import baccaratThumbnail from "./assets/baccarat/thumbnail.jpg?url";
 import makaoThumbnail from "./assets/makao/thumbnail.png?url";
+import holdemThumbnail from "./assets/holdem/thumbnail_holdem.png?url";
 import { GameConfig, GameType } from "./types";
 import Fruitogedon from "./games/Fruitogedon/Fruitogedon";
 import Baccarat from "./games/Baccarat/Baccarat";
@@ -12,6 +13,7 @@ import Baccarat from "./games/Baccarat/Baccarat";
 const Mummy = React.lazy(() => import("./games/Mummy/Mummy"));
 const Blackjack = React.lazy(() => import("./games/Blackjack/Blackjack"));
 const Makao = React.lazy(() => import("./games/Makao/Makao"));
+const Holdem = React.lazy(() => import("./games/Holdem/Holdem"));
 
 export const config = [
   {
@@ -47,6 +49,13 @@ export const config = [
     thumbnail: makaoThumbnail,
     component: Makao,
     name: "Makao",
+    type: GameType.CARD,
+  },
+  {
+    gameId: "holdem",
+    thumbnail: holdemThumbnail,
+    component: Holdem,
+    name: "Texas Hold'em",
     type: GameType.CARD,
   },
 ] as GameConfig[];

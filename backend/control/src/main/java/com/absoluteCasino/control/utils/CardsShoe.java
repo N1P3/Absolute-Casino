@@ -9,19 +9,25 @@ import static com.absoluteCasino.control.utils.DeckOfCards.createDeck;
 
 public class CardsShoe {
     public static int NUMBER_OF_DECKS = 5;
-    private LinkedList<String> shoe;
+    private final LinkedList<String> shoe;
     @Getter
     private int cardsLeft;
 
     public CardsShoe() {
         shoe = new LinkedList<>();
         cardsLeft = 260;
-        insertCards();
+        insertCards(NUMBER_OF_DECKS);
     }
 
-    private void insertCards() {
+    public CardsShoe(int numberOfDecks) {
+        shoe = new LinkedList<>();
+        cardsLeft = 52;
+        insertCards(numberOfDecks);
+    }
+
+    private void insertCards(int numberOfDecks) {
         List<String> newDeck = createDeck();
-        for (int i = 0; i < NUMBER_OF_DECKS; i++) {
+        for (int i = 0; i < numberOfDecks; i++) {
             shoe.addAll(newDeck);
         }
         Collections.shuffle(shoe);
