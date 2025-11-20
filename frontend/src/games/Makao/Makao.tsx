@@ -245,26 +245,97 @@ const Inner = ({
 
   const updateCards = async (response: MakaoResponse) => {
     const currentState = gameStateRef.current;
+    const bgWidth = textures.background.width * scale;
+    const bgHeight = textures.background.height * scale;
 
-    if (
-      response.playerHand &&
-      JSON.stringify(response.playerHand) !==
-        JSON.stringify(currentState.playerHand)
-    ) {
-      for (const card of cards.current.playerCards) {
-        await card.moveTo(new Point(width / 2, height + 200));
-        card.spriteRef.current?.destroy();
+    // 1. Handle Player Hand
+    if (response.playerHand) {
+      const newHandKeys = response.playerHand;
+      const oldHandRefs = [...cards.current.playerCards];
+      const nextPlayerCards: CardRef[] = new Array(newHandKeys.length).fill(
+        null
+      );
+      const playedCards: CardRef[] = [];
+
+      // Match existing cards
+      for (let i = 0; i < newHandKeys.length; i++) {
+        const key = newHandKeys[i];
+        const matchIndex = oldHandRefs.findIndex((ref) => ref.cardKey === key);
+        if (matchIndex !== -1) {
+          nextPlayerCards[i] = oldHandRefs[matchIndex];
+          oldHandRefs.splice(matchIndex, 1);
+        }
       }
-      cards.current.playerCards = [];
 
-      for (let i = 0; i < response.playerHand.length; i++) {
-        const cardRef = await dealCard(
-          response.playerHand[i],
-          "player",
-          true,
-          i
+      // Remaining in oldHandRefs are played/removed cards
+      playedCards.push(...oldHandRefs);
+
+      // 2. Handle Table Card
+      let newTableCardRef = cards.current.tableCard;
+      if (response.tableCard && response.tableCard !== currentState.tableCard) {
+        // Check if played from our hand
+        const playedCardRef = playedCards.find(
+          (ref) => ref.cardKey === response.tableCard
         );
-        cards.current.playerCards.push(cardRef.current!);
+
+        if (playedCardRef) {
+          // Animate played card to table
+          const targetX = POSITIONS.table.xRatio * bgWidth - 105;
+          const targetY = POSITIONS.table.yRatio * bgHeight - 125;
+
+          // Remove old table card
+          if (cards.current.tableCard) {
+            cards.current.tableCard.moveTo(new Point(width / 2, height + 200));
+            cards.current.tableCard.spriteRef.current?.destroy();
+          }
+
+          await playedCardRef.moveTo(new Point(targetX, targetY));
+          newTableCardRef = playedCardRef;
+
+          // Remove from playedCards
+          const idx = playedCards.indexOf(playedCardRef);
+          playedCards.splice(idx, 1);
+        } else {
+          // Not from our hand (opponent or other)
+          if (cards.current.tableCard) {
+            cards.current.tableCard.moveTo(new Point(width / 2, height + 200));
+            cards.current.tableCard.spriteRef.current?.destroy();
+          }
+          const tableCardRef = await dealCard(
+            response.tableCard,
+            "table",
+            true
+          );
+          newTableCardRef = tableCardRef.current!;
+        }
+      }
+      cards.current.tableCard = newTableCardRef;
+
+      // 3. Destroy other removed cards
+      for (const ref of playedCards) {
+        ref.moveTo(new Point(width / 2, height + 200));
+        ref.spriteRef.current?.destroy();
+      }
+
+      // 4. Deal new cards and fill nextPlayerCards
+      for (let i = 0; i < nextPlayerCards.length; i++) {
+        if (!nextPlayerCards[i]) {
+          const cardRef = await dealCard(newHandKeys[i], "player", true, i);
+          nextPlayerCards[i] = cardRef.current!;
+        }
+      }
+
+      cards.current.playerCards = nextPlayerCards;
+
+      // 5. Reposition all player cards
+      for (let i = 0; i < cards.current.playerCards.length; i++) {
+        const card = cards.current.playerCards[i];
+        const offset = i * PLAYER_CARD_SPACING * scale;
+        const targetX = POSITIONS.playerHand.xRatio * bgWidth + offset;
+        const targetY = POSITIONS.playerHand.yRatio * bgHeight;
+
+        // Animate to new position
+        card.moveTo(new Point(targetX, targetY));
       }
     }
 
@@ -294,17 +365,6 @@ const Inner = ({
           }
         }
       }
-    }
-
-    if (response.tableCard && response.tableCard !== currentState.tableCard) {
-      const oldTableCard = cards.current.tableCard;
-      if (oldTableCard) {
-        await oldTableCard.moveTo(new Point(width / 2, height + 200));
-        oldTableCard.spriteRef.current?.destroy();
-      }
-
-      const tableCardRef = await dealCard(response.tableCard, "table", true);
-      cards.current.tableCard = tableCardRef.current!;
     }
   };
 
