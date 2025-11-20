@@ -24,9 +24,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class HoldemWebSocketHandler extends TextWebSocketHandler {
 
-    private static final long ACTION_TIMEOUT_MS = 200_000L;
-    private final Map<Integer, Thread> tableTimers = new ConcurrentHashMap<>();
-
     private final JWTUtil jwtUtil;
     private final BalanceUpdateManager balanceUpdateManager;
     private final HoldemGameService holdemGameService;
@@ -81,7 +78,6 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
             session.sendMessage(error("Brak powiązanego użytkownika"));
             return;
         }
-        log.info(userId.toString());
         String payload = message.getPayload();
         JsonNode node;
         try {
@@ -99,6 +95,7 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
                 case "join_table" -> handleJoinTable(userId, node, session);
                 case "leave_table" -> handleLeaveTable(userId, node, session);
                 case "start_hand" -> handleStartHand(userId, node, session);
+                case "rebuy" -> handleRebuy(userId, node, session);
                 case "call" -> handleAction(userId, node, PlayerActionType.CALL);
                 case "check" -> handleAction(userId, node, PlayerActionType.CHECK);
                 case "fold" -> handleAction(userId, node, PlayerActionType.FOLD);
@@ -115,11 +112,7 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
 
     private void handleJoinTable(Long userId, JsonNode node, WebSocketSession session) throws IOException {
         int tableId = node.get("tableId").asInt();
-        long buyIn = node.has("smallBlind") ? node.get("smallBlind").asLong() : 1000L;
-
-        // tutaj możesz zrobić mapę tableId -> smallBlind, jeżeli stawka jest per stół
-        // np. int smallBlind = switch (tableId) { case 1 -> 5; case 2 -> 10; case 3 -> 25; case 4 -> 50; default -> 5; };
-        // i ustawiać ją w HoldemGameService / HoldemTable
+        long buyIn = node.has("amount") ? node.get("amount").asLong() : 1000L;
 
         BalanceUpdateManager.BalanceUpdateResult result =
                 balanceUpdateManager.sendBalanceUpdate(userId.intValue(), -buyIn);
@@ -132,9 +125,27 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
         holdemGameService.joinTable(tableId, userId, buyIn);
         userCurrentTable.put(userId, tableId);
 
-        // AUTO‑START: jeśli przy tym stole są już co najmniej 2 osoby, spróbuj od razu wystartować rozdanie
         tryAutoStartHand(tableId);
+        sendTableStateToAll(tableId);
+    }
 
+    private void handleRebuy(Long userId, JsonNode node, WebSocketSession session) throws IOException {
+        int tableId = node.get("tableId").asInt();
+        long amount = node.has("amount") ? node.get("amount").asLong() : 0L;
+        if (amount <= 0) {
+            session.sendMessage(error("Nieprawidłowa kwota rebuy"));
+            return;
+        }
+
+        BalanceUpdateManager.BalanceUpdateResult result =
+                balanceUpdateManager.sendBalanceUpdate(userId.intValue(), -amount);
+
+        if (!result.isSuffFunds()) {
+            session.sendMessage(error("Brak wystarczających środków na rebuy"));
+            return;
+        }
+
+        holdemGameService.rebuy(tableId, userId, amount);
         sendTableStateToAll(tableId);
     }
 
@@ -160,27 +171,37 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
         sendTableStateToAll(tableId);
     }
 
-    // zostawiamy, ale w normalnym flow nie będzie wołany z frontu
     private void handleStartHand(Long userId, JsonNode node, WebSocketSession session) throws IOException {
         int tableId = node.get("tableId").asInt();
         holdemGameService.startHandIfPossible(tableId);
         sendTableStateToAll(tableId);
-//        restartActionTimer(tableId);
     }
 
     private void handleAction(Long userId, JsonNode node, PlayerActionType action) throws IOException {
         int tableId = node.get("tableId").asInt();
-        holdemGameService.handlePlayerAction(tableId, userId, action, 0L);
+        String errorMsg = holdemGameService.handlePlayerAction(tableId, userId, action, 0L);
+        if (errorMsg != null) {
+            WebSocketSession s = userSessions.get(userId);
+            if (s != null && s.isOpen()) {
+                s.sendMessage(error(errorMsg));
+            }
+            return;
+        }
         sendTableStateToAll(tableId);
-//        restartActionTimer(tableId);
     }
 
     private void handleActionWithAmount(Long userId, JsonNode node, PlayerActionType action) throws IOException {
         int tableId = node.get("tableId").asInt();
         long amount = node.has("amount") ? node.get("amount").asLong() : 0L;
-        holdemGameService.handlePlayerAction(tableId, userId, action, amount);
+        String errorMsg = holdemGameService.handlePlayerAction(tableId, userId, action, amount);
+        if (errorMsg != null) {
+            WebSocketSession s = userSessions.get(userId);
+            if (s != null && s.isOpen()) {
+                s.sendMessage(error(errorMsg));
+            }
+            return;
+        }
         sendTableStateToAll(tableId);
-//        restartActionTimer(tableId);
     }
 
     private TextMessage error(String msg) {
@@ -189,7 +210,6 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
 
     private void sendTableStateToAll(int tableId) throws IOException {
         HoldemTable table = holdemGameService.getTable(tableId);
-
         for (Seat seat : table.getSeats()) {
             if (!seat.isOccupied()) continue;
             Long userId = seat.getUserId();
@@ -221,41 +241,6 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
         log.info("User disconnected from Hold'em");
     }
 
-    private void restartActionTimer(int tableId) {
-        Thread old = tableTimers.get(tableId);
-        if (old != null && old.isAlive()) {
-            old.interrupt();
-        }
-
-        Thread t = new Thread(() -> {
-            try {
-                Thread.sleep(ACTION_TIMEOUT_MS);
-                HoldemTable table = holdemGameService.getTable(tableId);
-                HoldemHand hand = table.getCurrentHand();
-                if (hand == null) return;
-
-                int seatPos = hand.getCurrentPlayerSeat();
-                Seat seat = table.getSeats().stream()
-                        .filter(s -> s.getPosition() == seatPos)
-                        .findFirst()
-                        .orElse(null);
-                if (seat == null || seat.getUserId() == null) return;
-
-                Long userId = seat.getUserId();
-                holdemGameService.handlePlayerAction(tableId, userId, PlayerActionType.FOLD, 0L);
-                sendTableStateToAll(tableId);
-            } catch (InterruptedException ignored) {
-            } catch (Exception e) {
-                log.severe("Error in action timeout thread: " + e.getMessage());
-            }
-        });
-        tableTimers.put(tableId, t);
-        t.start();
-    }
-
-    /**
-     * Auto‑start rozdania gdy są co najmniej 2 aktywni gracze i brak bieżącej ręki.
-     */
     private void tryAutoStartHand(int tableId) {
         try {
             HoldemTable table = holdemGameService.getTable(tableId);
@@ -266,9 +251,8 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
                     .count();
 
             if (activePlayers >= 2 && table.getCurrentHand() == null) {
-                log.info("Auto‑starting hand at table " + tableId + " (players=" + activePlayers + ")");
+                log.info("Auto-starting hand at table " + tableId + " (players=" + activePlayers + ")");
                 holdemGameService.startHandIfPossible(tableId);
-//                restartActionTimer(tableId);
             }
         } catch (Exception e) {
             log.severe("Error in tryAutoStartHand: " + e.getMessage());

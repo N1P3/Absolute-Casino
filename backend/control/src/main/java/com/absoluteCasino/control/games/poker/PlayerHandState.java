@@ -17,6 +17,7 @@ public class PlayerHandState {
 
     private long chipsInPotThisStreet = 0L;
     private long totalChipsInPot = 0L;
+    private boolean actedThisStreet;
 
     public PlayerHandState(int seatPosition) {
         this.seatPosition = seatPosition;

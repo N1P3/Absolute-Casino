@@ -2,11 +2,11 @@ package com.absoluteCasino.control.games.poker;
 
 import com.absoluteCasino.control.utils.CardsShoe;
 import com.absoluteCasino.control.utils.Seat;
+import lombok.Getter;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class HoldemGameService {
@@ -14,10 +14,11 @@ public class HoldemGameService {
     private final Map<Integer, HoldemTable> tables = new ConcurrentHashMap<>();
     private final Map<Integer, List<WaitingPlayer>> waitingPlayers = new ConcurrentHashMap<>();
 
-    private final CardsShoe shoe = new CardsShoe(CardsShoe.NUMBER_OF_DECKS);
-    private final AtomicInteger handIdSeq = new AtomicInteger(1);
-
+    private CardsShoe shoe = new CardsShoe(1);
     private final HoldemHandEvaluator handEvaluator = new HoldemHandEvaluator();
+
+    @Getter
+    private final int maxSeatsPerTable = 8;
 
     public HoldemTable getTable(int tableId) {
         HoldemTable table = tables.get(tableId);
@@ -31,7 +32,7 @@ public class HoldemGameService {
         return tables.computeIfAbsent(tableId, id ->
                 new HoldemTable(
                         id,
-                        8,
+                        maxSeatsPerTable,
                         new Blinds(10, 20),
                         1000L,
                         4000L
@@ -63,6 +64,19 @@ public class HoldemGameService {
         }
     }
 
+    public void rebuy(int tableId, Long userId, long amount) {
+        if (amount <= 0) {
+            return;
+        }
+        HoldemTable table = getTable(tableId);
+        for (Seat seat : table.getSeats()) {
+            if (userId.equals(seat.getUserId())) {
+                seat.setStack(seat.getStack() + amount);
+                return;
+            }
+        }
+    }
+
     public void leaveTable(int tableId, Long userId) {
         HoldemTable table = getTable(tableId);
 
@@ -86,12 +100,18 @@ public class HoldemGameService {
 
     public void startHandIfPossible(int tableId) {
         HoldemTable table = tables.get(tableId);
-        if (table == null) return;
-        if (table.getCurrentHand() != null) return;
+        if (table == null) {
+            return;
+        }
+        if (table.getCurrentHand() != null) {
+            return;
+        }
 
         long activePlayers = table.getActivePlayersCount();
-        if (activePlayers < 2) return;
-
+        if (activePlayers < 2) {
+            return;
+        }
+        shoe = new CardsShoe(1);
         HoldemHand hand = new HoldemHand(tableId, shoe);
         table.setCurrentHand(hand);
 
@@ -99,105 +119,122 @@ public class HoldemGameService {
                 .filter(Seat::isOccupied)
                 .filter(seat -> !seat.isSittingOut())
                 .toList();
+        if (activeSeats.size() < 2) {
+            return;
+        }
 
         int dealerPos = getNextDealerPosition(table, activeSeats);
         table.setDealerPosition(dealerPos);
 
         postBlindsAndDeal(table, hand, activeSeats);
+        table.setStatus(TableStatus.HAND_IN_PROGRESS);
     }
 
-
-
-
-    public void handlePlayerAction(int tableId,
-                                   Long userId,
-                                   PlayerActionType action,
-                                   long amount) {
+    public String handlePlayerAction(int tableId,
+                                     Long userId,
+                                     PlayerActionType action,
+                                     long amount) {
 
         HoldemTable table = getTable(tableId);
         HoldemHand hand = table.getCurrentHand();
         if (hand == null) {
-            throw new IllegalStateException("No hand in progress");
+            return "Brak aktywnej ręki";
         }
 
         Seat seat = findSeatByUserId(table, userId);
         PlayerHandState ps = hand.getPlayers().get(seat.getPosition());
         if (ps == null || ps.isFolded() || ps.isAllIn()) {
-            return;
+            return "Gracz nie jest aktywny w rozdaniu";
         }
 
         if (seat.getPosition() != hand.getCurrentPlayerSeat()) {
-            throw new IllegalStateException("Not this player's turn");
+            return "To nie jest tura tego gracza";
         }
 
         switch (action) {
             case FOLD -> {
                 ps.setFolded(true);
+                ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": FOLD");
             }
             case CHECK -> {
                 long toCall = hand.getCurrentBet() - ps.getChipsInPotThisStreet();
                 if (toCall != 0) {
-                    throw new IllegalStateException("Cannot check, need to call " + toCall);
+                    return "Nie możesz checkować, musisz sprawdzić " + toCall;
                 }
+                ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": CHECK");
             }
             case CALL -> {
                 long toCall = hand.getCurrentBet() - ps.getChipsInPotThisStreet();
-                if (toCall > 0) {
-                    takeChips(hand, seat, toCall);
+                if (toCall <= 0) {
+                    return "Nie ma nic do sprawdzenia";
                 }
+                if (seat.getStack() <= 0) {
+                    return "Brak żetonów na call";
+                }
+                takeChips(hand, seat, toCall);
+                ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": CALL " + toCall);
             }
             case BET -> {
                 if (hand.getCurrentBet() != 0) {
-                    throw new IllegalStateException("Cannot bet, bet already exists, use raise");
+                    return "Nie możesz betować, istnieje już bet – użyj raise";
                 }
                 if (amount < table.getBlinds().bigBlind()) {
-                    throw new IllegalArgumentException("Bet must be at least big blind");
+                    return "Bet musi być co najmniej big blind (" + table.getBlinds().bigBlind() + ")";
                 }
                 long newBetAmount = amount;
                 long toPutNow = newBetAmount;
                 if (toPutNow <= 0) {
-                    throw new IllegalArgumentException("Invalid bet amount");
+                    return "Nieprawidłowa kwota betu";
+                }
+                if (seat.getStack() < toPutNow) {
+                    return "Nie masz wystarczających żetonów na bet";
                 }
                 takeChips(hand, seat, toPutNow);
                 hand.setCurrentBet(newBetAmount);
+                ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": BET " + newBetAmount);
             }
             case RAISE -> {
                 if (hand.getCurrentBet() == 0) {
-                    throw new IllegalStateException("Cannot raise, there is no bet, use bet");
+                    return "Nie możesz raisować, nie ma betu – użyj bet";
                 }
                 if (amount <= hand.getCurrentBet()) {
-                    throw new IllegalArgumentException("Raise must be greater than current bet");
+                    return "Raise musi być większy niż obecny bet (" + hand.getCurrentBet() + ")";
                 }
                 long newBetAmount = amount;
                 long alreadyPut = ps.getChipsInPotThisStreet();
                 long toPutNow = newBetAmount - alreadyPut;
                 if (toPutNow <= 0) {
-                    throw new IllegalArgumentException("Invalid raise amount");
+                    return "Nieprawidłowa kwota raisu";
                 }
                 if (toPutNow < table.getBlinds().bigBlind()) {
-                    throw new IllegalArgumentException("Raise must be at least big blind");
+                    return "Raise musi być co najmniej o big blinda (" + table.getBlinds().bigBlind() + ")";
+                }
+                if (seat.getStack() < toPutNow) {
+                    return "Nie masz wystarczających żetonów na raise";
                 }
                 takeChips(hand, seat, toPutNow);
                 hand.setCurrentBet(newBetAmount);
+                ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": RAISE do " + newBetAmount);
             }
             case ALL_IN -> {
+                if (seat.getStack() <= 0) {
+                    return "Brak żetonów na all-in";
+                }
                 long newBetAmount = ps.getChipsInPotThisStreet() + seat.getStack();
                 long toPutNow = seat.getStack();
-                if (toPutNow > 0) {
-                    takeChips(hand, seat, toPutNow);
-                    if (newBetAmount > hand.getCurrentBet()) {
-                        hand.setCurrentBet(newBetAmount);
-                    }
+                takeChips(hand, seat, toPutNow);
+                if (newBetAmount > hand.getCurrentBet()) {
+                    hand.setCurrentBet(newBetAmount);
                 }
+                ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": ALL-IN");
             }
         }
-
 
         if (isHandEndedByFolds(hand)) {
             finishHandByFolds(table, hand);
@@ -206,19 +243,8 @@ public class HoldemGameService {
         } else {
             moveToNextPlayer(table, hand);
         }
-    }
-    private void scheduleNextHand(int tableId) {
-        new Thread(() -> {
-            try {
-                Thread.sleep(3000L);
-            } catch (InterruptedException ignored) {
-            }
-            try {
-                startHandIfPossible(tableId);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }).start();
+
+        return null;
     }
 
     private void seatPlayer(HoldemTable table, Seat seat, Long userId, long buyIn) {
@@ -286,6 +312,7 @@ public class HoldemGameService {
             PlayerHandState ps = new PlayerHandState(seat.getPosition());
             ps.setHole1(hand.getShoe().getCard());
             ps.setHole2(hand.getShoe().getCard());
+            ps.setActedThisStreet(false);
             hand.getPlayers().put(seat.getPosition(), ps);
         }
 
@@ -323,26 +350,32 @@ public class HoldemGameService {
     }
 
     private boolean isBettingRoundEnded(HoldemTable table, HoldemHand hand) {
-        long notFolded = hand.getPlayers().values().stream()
+        List<PlayerHandState> active = hand.getPlayers().values().stream()
                 .filter(ps -> !ps.isFolded())
-                .count();
+                .filter(ps -> !ps.isAllIn())
+                .toList();
 
-        if (notFolded <= 1) {
+        if (active.size() <= 1) {
             return true;
         }
 
-        long toActCount = hand.getPlayers().values().stream()
-                .filter(ps -> !ps.isFolded())
-                .filter(ps -> !ps.isAllIn())
-                .filter(ps -> ps.getChipsInPotThisStreet() != hand.getCurrentBet())
-                .count();
-
-        return toActCount == 0;
+        if (hand.getCurrentBet() == 0) {
+            boolean everyoneActed = active.stream().allMatch(PlayerHandState::isActedThisStreet);
+            return everyoneActed;
+        } else {
+            long toActCount = active.stream()
+                    .filter(ps -> ps.getChipsInPotThisStreet() != hand.getCurrentBet())
+                    .count();
+            return toActCount == 0;
+        }
     }
 
     private void advanceStreet(HoldemTable table, HoldemHand hand) {
         hand.setCurrentBet(0);
-        hand.getPlayers().values().forEach(ps -> ps.setChipsInPotThisStreet(0));
+        hand.getPlayers().values().forEach(ps -> {
+            ps.setChipsInPotThisStreet(0);
+            ps.setActedThisStreet(false);
+        });
 
         switch (hand.getStreet()) {
             case PREFLOP -> {
@@ -381,7 +414,6 @@ public class HoldemGameService {
                 })
                 .toList();
 
-
         if (activeSeats.isEmpty()) {
             finishHandByFolds(table, hand);
             return;
@@ -406,18 +438,22 @@ public class HoldemGameService {
                 .filter(ps -> !ps.isFolded())
                 .findFirst()
                 .orElse(null);
+
+        long pot = hand.getPot();
+        String resultText = "Nikt nie wygrał";
+
         if (winner != null) {
             Seat winnerSeat = table.getSeats().stream()
                     .filter(seat -> seat.getPosition() == winner.getSeatPosition())
                     .findFirst()
                     .orElse(null);
             if (winnerSeat != null) {
-                winnerSeat.setStack(winnerSeat.getStack() + hand.getPot());
+                winnerSeat.setStack(winnerSeat.getStack() + pot);
+                resultText = "Seat " + winner.getSeatPosition() + " wygrał " + pot;
             }
         }
-        endHandAndMoveWaitingPlayers(table);
-        scheduleNextHand(table.getTableId());
 
+        finishHandAndScheduleNext(table, resultText);
     }
 
     private void finishHandByShowdown(HoldemTable table, HoldemHand hand) {
@@ -426,7 +462,7 @@ public class HoldemGameService {
                 .toList();
 
         if (contenders.isEmpty()) {
-            endHandAndMoveWaitingPlayers(table);
+            finishHandAndScheduleNext(table, "Brak contenderów");
             return;
         }
 
@@ -449,6 +485,8 @@ public class HoldemGameService {
             int rank = handEvaluator.evaluateHand(hole, hand.getCommunityCards());
             seatToRank.put(ps.getSeatPosition(), rank);
         }
+
+        Map<Integer, Long> wins = new HashMap<>();
 
         for (SidePot pot : pots) {
             List<PlayerHandState> eligible = contenders.stream()
@@ -485,13 +523,23 @@ public class HoldemGameService {
                 if (winnerSeat != null) {
                     long win = share + (i == 0 ? remainder : 0);
                     winnerSeat.setStack(winnerSeat.getStack() + win);
+                    wins.merge(ps.getSeatPosition(), win, Long::sum);
                 }
             }
         }
 
-        endHandAndMoveWaitingPlayers(table);
-        scheduleNextHand(table.getTableId());
+        StringBuilder sb = new StringBuilder("Showdown: ");
+        boolean first = true;
+        for (Map.Entry<Integer, Long> e : wins.entrySet()) {
+            if (!first) sb.append(" | ");
+            sb.append("Seat ").append(e.getKey()).append(" +").append(e.getValue());
+            first = false;
+        }
+        if (first) {
+            sb.append("brak wygranych");
+        }
 
+        finishHandAndScheduleNext(table, sb.toString());
     }
 
     private List<SidePot> buildSidePots(Map<Integer, Long> committed) {
@@ -528,6 +576,24 @@ public class HoldemGameService {
         return pots;
     }
 
+    private void finishHandAndScheduleNext(HoldemTable table, String resultText) {
+        table.setLastResultText(resultText);
+        table.setLastResultTimestamp(System.currentTimeMillis());
+        endHandAndMoveWaitingPlayers(table);
+        int tableId = table.getTableId();
+        new Thread(() -> {
+            try {
+                Thread.sleep(3000L);
+            } catch (InterruptedException ignored) {
+            }
+            try {
+                startHandIfPossible(tableId);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
     private void endHandAndMoveWaitingPlayers(HoldemTable table) {
         table.setCurrentHand(null);
         table.setStatus(TableStatus.WAITING_FOR_NEXT_HAND);
@@ -553,6 +619,7 @@ public class HoldemGameService {
             waitingPlayers.remove(tableId);
         }
     }
+
     public void setSittingOut(int tableId, Long userId, boolean sittingOut) {
         HoldemTable table = getTable(tableId);
         for (Seat seat : table.getSeats()) {
@@ -563,9 +630,7 @@ public class HoldemGameService {
         }
     }
 
-
     private record WaitingPlayer(Long userId, long buyIn) { }
 
     private record SidePot(long amount, Set<Integer> eligibleSeats) { }
 }
-

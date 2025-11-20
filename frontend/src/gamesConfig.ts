@@ -5,6 +5,7 @@ import blackjackThumbnail from "./assets/blackjack/thumbnail2.png?url";
 import fruitogedonThumbnail from "./assets/fruitogedon/thumbnail.png?url";
 import baccaratThumbnail from "./assets/baccarat/thumbnail.jpg?url";
 import makaoThumbnail from "./assets/makao/thumbnail.png?url";
+import holdemThumbnail from "./assets/holdem/thumbnail_holdem.png?url";
 import { GameConfig, GameType } from "./types";
 import Fruitogedon from "./games/Fruitogedon/Fruitogedon";
 import Baccarat from "./games/Baccarat/Baccarat";
@@ -52,7 +53,7 @@ export const config = [
   },
   {
     gameId: "holdem",
-    thumbnail: makaoThumbnail,
+    thumbnail: holdemThumbnail,
     component: Holdem,
     name: "Texas Hold'em",
     type: GameType.CARD,

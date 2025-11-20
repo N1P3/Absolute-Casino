@@ -9,7 +9,7 @@ import React, {
 import { Stage, Sprite, Container, Graphics } from "@pixi/react";
 import { Texture, Graphics as PixiGraphics } from "pixi.js";
 
-import bg from "@/assets/makao/background.png?url";
+import bg from "@/assets/holdem/background_holdem.png?url";
 import { CardKey, loadCardTextures } from "../shared";
 import Card, { CardRef } from "../Blackjack/Card";
 
@@ -33,6 +33,7 @@ const TABLES = [
 ];
 
 const ACTION_TIMEOUT_MS = 20_000;
+const NEXT_HAND_DELAY_MS = 3_000;
 
 type Screen = "lobby" | "table";
 
@@ -84,6 +85,7 @@ const Holdem: React.FC = () => {
     const ws = useRef<WebSocket | undefined>(undefined);
     const actionLocked = useRef(false);
     const actionTimer = useRef<number | null>(null);
+    const nextHandTimer = useRef<number | null>(null);
 
     const [actionDeadlineMs, setActionDeadlineMs] = useState<number | null>(null);
     const [actionSecondsLeft, setActionSecondsLeft] = useState<number | null>(null);
@@ -152,6 +154,32 @@ const Holdem: React.FC = () => {
         return () => window.clearInterval(id);
     }, [actionDeadlineMs, gameState.isMyTurn]);
 
+    const scheduleNextHand = useCallback(
+        (tableId: number | null) => {
+            if (!tableId || !ws.current) return;
+
+            if (nextHandTimer.current) {
+                window.clearTimeout(nextHandTimer.current);
+                nextHandTimer.current = null;
+            }
+
+            nextHandTimer.current = window.setTimeout(async () => {
+                if (!ws.current) return;
+                try {
+                    await websocketRequest(ws.current, {
+                        command: "start_hand",
+                        tableId,
+                    });
+                } catch (e) {
+                    console.error("start_hand error", e);
+                } finally {
+                    nextHandTimer.current = null;
+                }
+            }, NEXT_HAND_DELAY_MS);
+        },
+        []
+    );
+
     const updateFromGameState = useCallback(
         (resp: HoldemResponse) => {
             const players = resp.players || [];
@@ -162,14 +190,31 @@ const Holdem: React.FC = () => {
             const hasPlayers = players.length > 0;
             const inHand = !!resp.street;
 
+            let playerHand = resp.viewerHoleCards || [];
+            let communityCards = resp.communityCards || [];
+            let state: HoldemGameState["state"];
+
+            if (!hasPlayers) {
+                state = "idle";
+                playerHand = [];
+                communityCards = [];
+            } else if (!inHand) {
+                state = "waiting";
+                playerHand = [];
+                communityCards = [];
+            } else {
+                state = "playing";
+            }
+
+            const result =
+                inHand
+                    ? null
+                    : (resp.result ?? null);
+
             const newState: HoldemGameState = {
-                state: !hasPlayers
-                    ? "idle"
-                    : inHand
-                        ? "playing"
-                        : "waiting",
-                playerHand: resp.viewerHoleCards || [],
-                communityCards: resp.communityCards || [],
+                state,
+                playerHand,
+                communityCards,
                 pot: resp.pot ?? 0,
                 currentBet: resp.currentBet ?? 0,
                 gameStage: resp.street || GAME_STAGES.PREFLOP,
@@ -177,16 +222,27 @@ const Holdem: React.FC = () => {
                 dealerSeat: resp.dealerSeat ?? null,
                 isMyTurn,
                 players,
-                gameOver: false,
-                result: resp.result ?? null,
+                gameOver: !inHand && !!resp.result,
+                result,
                 availableActions: resp.availableActions || [],
                 lastAction: resp.lastAction ?? null,
             };
 
             setGameState(newState);
-            restartActionTimer(resp.tableId ?? activeTableId, isMyTurn);
+
+            if (!inHand) {
+                if (actionTimer.current) {
+                    window.clearTimeout(actionTimer.current);
+                    actionTimer.current = null;
+                }
+                setActionDeadlineMs(null);
+                setActionSecondsLeft(null);
+                scheduleNextHand(resp.tableId ?? activeTableId);
+            } else {
+                restartActionTimer(resp.tableId ?? activeTableId, isMyTurn);
+            }
         },
-        [restartActionTimer, activeTableId]
+        [restartActionTimer, scheduleNextHand, activeTableId]
     );
 
     const connectWs = useCallback(() => {
@@ -201,17 +257,19 @@ const Holdem: React.FC = () => {
         socket.onmessage = (event) => {
             console.log("WS Holdem message:", event.data);
             try {
-                const data = JSON.parse(event.data) as HoldemResponse;
+                const data = JSON.parse(event.data) as HoldemResponse | { type: "ERROR"; message: string };
+
                 if (data.type === "ERROR") {
                     toast({
-                        title: "Błąd",
-                        description: data.message || "Błąd serwera",
+                        title: "Błąd akcji",
+                        description: (data as any).message || "Nieprawidłowy ruch",
                         variant: "destructive",
                     });
                     return;
                 }
+
                 if (data.type === "GAME_STATE") {
-                    updateFromGameState(data);
+                    updateFromGameState(data as HoldemResponse);
                 }
             } catch (e) {
                 console.error("Bad WS message", e);
@@ -224,6 +282,10 @@ const Holdem: React.FC = () => {
             setPartialGameState({ state: "idle", isMyTurn: false });
             setActionDeadlineMs(null);
             setActionSecondsLeft(null);
+            if (nextHandTimer.current) {
+                window.clearTimeout(nextHandTimer.current);
+                nextHandTimer.current = null;
+            }
         };
 
         socket.onerror = () => {
@@ -282,6 +344,10 @@ const Holdem: React.FC = () => {
         if (actionTimer.current) {
             window.clearTimeout(actionTimer.current);
             actionTimer.current = null;
+        }
+        if (nextHandTimer.current) {
+            window.clearTimeout(nextHandTimer.current);
+            nextHandTimer.current = null;
         }
     };
 
@@ -357,15 +423,7 @@ const Holdem: React.FC = () => {
                 tableId: activeTableId,
                 ...(amount !== undefined ? { amount } : {}),
             })
-                .then(() => {
-                    setPartialGameState({ isMyTurn: false });
-                    setActionDeadlineMs(null);
-                    setActionSecondsLeft(null);
-                    if (actionTimer.current) {
-                        window.clearTimeout(actionTimer.current);
-                        actionTimer.current = null;
-                    }
-                })
+                .then(() => {})
                 .catch((e) => {
                     actionLocked.current = false;
                     toast({
@@ -380,7 +438,6 @@ const Holdem: React.FC = () => {
             gameState.state,
             gameState.isMyTurn,
             gameState.availableActions,
-            setPartialGameState,
             toast,
         ]
     );
@@ -479,9 +536,9 @@ const Holdem: React.FC = () => {
                         cardKey={cardKey as CardKey}
                         facing="front"
                         cardTextures={textures}
-                        x={seatPos.cardsX + (index - 0.5) * 55}
+                        x={seatPos.cardsX + (index - 0.5) * 45}
                         y={seatPos.cardsY}
-                        scale={0.75}
+                        scale={0.6}
                     />
                 );
             });
@@ -504,9 +561,9 @@ const Holdem: React.FC = () => {
                         cardKey={"BB" as CardKey}
                         facing="back"
                         cardTextures={textures}
-                        x={seatPos.cardsX + (index - 0.5) * 55}
+                        x={seatPos.cardsX + (index - 0.5) * 45}
                         y={seatPos.cardsY}
-                        scale={0.7}
+                        scale={0.55}
                     />
                 );
             });
@@ -519,8 +576,8 @@ const Holdem: React.FC = () => {
             <Graphics
                 draw={(g: PixiGraphics) => {
                     g.clear();
-                    g.lineStyle(4, 0x00ff00, 0.9);
-                    g.drawRoundedRect(TABLE_CENTER.x - 260, TABLE_CENTER.y - 90, 520, 180, 20);
+                    g.lineStyle(3, 0x00ff00, 0.8);
+                    g.drawRoundedRect(TABLE_CENTER.x - 240, TABLE_CENTER.y - 80, 480, 160, 18);
                 }}
             />
         );
@@ -587,9 +644,9 @@ const Holdem: React.FC = () => {
                                 cardKey={cardKey as CardKey}
                                 facing="front"
                                 cardTextures={textures || ({} as any)}
-                                x={TABLE_CENTER.x - 2 * 70 + index * 70}
+                                x={TABLE_CENTER.x - 2 * 60 + index * 60}
                                 y={TABLE_CENTER.y}
-                                scale={0.8}
+                                scale={0.65}
                             />
                         ))}
 

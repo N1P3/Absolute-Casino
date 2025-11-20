@@ -34,19 +34,22 @@ public class HoldemTableStateResponse {
         dto.tableId = table.getId();
         dto.smallBlind = table.getBlinds().smallBlind();
         dto.bigBlind = table.getBlinds().bigBlind();
-        dto.pot = table.getCurrentHand() != null ? table.getCurrentHand().getPot() : 0L;
-        dto.currentBet = table.getCurrentHand() != null ? table.getCurrentHand().getCurrentBet() : 0L;
-        dto.street = table.getCurrentHand() != null && table.getCurrentHand().getStreet() != null
-                ? table.getCurrentHand().getStreet().name()
+
+        HoldemHand hand = table.getCurrentHand();
+
+        dto.pot = hand != null ? hand.getPot() : 0L;
+        dto.currentBet = hand != null ? hand.getCurrentBet() : 0L;
+        dto.street = hand != null && hand.getStreet() != null
+                ? hand.getStreet().name()
                 : null;
-        dto.currentPlayerSeat = table.getCurrentHand() != null
-                ? table.getCurrentHand().getCurrentPlayerSeat()
+        dto.currentPlayerSeat = hand != null
+                ? hand.getCurrentPlayerSeat()
                 : null;
         dto.dealerSeat = table.getDealerPosition();
 
         dto.communityCards = new ArrayList<>();
-        if (table.getCurrentHand() != null) {
-            dto.communityCards.addAll(table.getCurrentHand().getCommunityCards());
+        if (hand != null) {
+            dto.communityCards.addAll(hand.getCommunityCards());
         }
 
         dto.viewerHoleCards = new ArrayList<>();
@@ -55,17 +58,16 @@ public class HoldemTableStateResponse {
                 .filter(s -> viewerUserId != null && viewerUserId.equals(s.getUserId()))
                 .findFirst()
                 .orElse(null);
-        if (viewerSeat != null && table.getCurrentHand() != null) {
+        if (viewerSeat != null && hand != null) {
             dto.viewerHoleCards.addAll(
-                    table.getCurrentHand().getHoleCardsForSeat(viewerSeat.getPosition())
+                    hand.getHoleCardsForSeat(viewerSeat.getPosition())
             );
         }
 
         dto.players = new ArrayList<>();
-        HoldemHand currentHand = table.getCurrentHand();
         for (Seat seat : table.getSeats()) {
             HoldemPlayerResponse p =
-                    HoldemPlayerResponse.from(seat, viewerUserId, currentHand, dto.currentPlayerSeat);
+                    HoldemPlayerResponse.from(seat, viewerUserId, hand, dto.currentPlayerSeat);
             if (p != null) {
                 dto.players.add(p);
             }

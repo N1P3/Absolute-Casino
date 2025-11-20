@@ -28,7 +28,6 @@ public class HoldemTable {
     private long lastResultTimestamp;
     private String lastActionText;
 
-
     public HoldemTable(int tableId,
                        int maxSeats,
                        Blinds blinds,
@@ -48,47 +47,12 @@ public class HoldemTable {
         return (long) tableId;
     }
 
-    public int getSmallBlind() {
-        return Math.toIntExact(blinds.smallBlind());
-    }
-
-    public int getBigBlind() {
-        return Math.toIntExact(blinds.bigBlind());
-    }
-
-    public long getPot() {
-        return currentHand != null ? currentHand.getPot() : 0L;
-    }
-
     public long getCurrentBet() {
         return currentHand != null ? currentHand.getCurrentBet() : 0L;
     }
 
-    public BettingStreet getStreet() {
-        return currentHand != null ? currentHand.getStreet() : null;
-    }
-
     public Integer getCurrentPlayerSeat() {
         return currentHand != null ? currentHand.getCurrentPlayerSeat() : null;
-    }
-
-    public Integer getDealerSeat() {
-        return dealerPosition;
-    }
-
-    public List<String> getCommunityCards() {
-        if (currentHand == null) {
-            return List.of();
-        }
-        return currentHand.getCommunityCards();
-    }
-
-    public HoldemHand getCurrentHand() {
-        return currentHand;
-    }
-
-    public List<Seat> getSeats() {
-        return seats;
     }
 
     public long getActivePlayersCount() {
@@ -100,87 +64,6 @@ public class HoldemTable {
             return null;
         }
         return seats.get(seatPosition);
-    }
-
-    public int getSeatPositionByUserId(Long userId) {
-        if (userId == null) {
-            return -1;
-        }
-        for (Seat seat : seats) {
-            if (seat.isOccupied() && userId.equals(seat.getUserId())) {
-                return seat.getPosition();
-            }
-        }
-        return -1;
-    }
-
-    public Seat findSeatByUserId(Long userId) {
-        if (userId == null) {
-            return null;
-        }
-        for (Seat seat : seats) {
-            if (seat.isOccupied() && userId.equals(seat.getUserId())) {
-                return seat;
-            }
-        }
-        return null;
-    }
-
-    public List<String> getViewerHoleCards(Seat viewerSeat) {
-        if (currentHand == null || viewerSeat == null) {
-            return List.of();
-        }
-        return currentHand.getHoleCardsForSeat(viewerSeat.getPosition());
-    }
-
-    public void setCurrentHand(HoldemHand hand) {
-        this.currentHand = hand;
-    }
-
-    public void setDealerPosition(int dealerPosition) {
-        this.dealerPosition = dealerPosition;
-    }
-
-    public void setLastResultText(String lastResultText) {
-        this.lastResultText = lastResultText;
-    }
-
-    public void setLastResultTimestamp(long lastResultTimestamp) {
-        this.lastResultTimestamp = lastResultTimestamp;
-    }
-
-    public void sitPlayer(Long userId, long buyIn) {
-        for (Seat seat : seats) {
-            if (!seat.isOccupied()) {
-                seat.setUserId(userId);
-                seat.setStack(buyIn);
-                return;
-            }
-        }
-    }
-
-    public void leavePlayer(Long userId) {
-        for (Seat seat : seats) {
-            if (seat.isOccupied() && userId.equals(seat.getUserId())) {
-                seat.setUserId(null);
-                seat.setStack(0L);
-                break;
-            }
-        }
-    }
-
-    public void setSittingOut(Long userId, boolean sittingOut) {
-        for (Seat seat : seats) {
-            if (seat.isOccupied() && userId.equals(seat.getUserId())) {
-                seat.setSittingOut(sittingOut);
-                break;
-            }
-        }
-    }
-
-    public void startNewHand(HoldemHand hand) {
-        this.currentHand = hand;
-        this.status = TableStatus.HAND_IN_PROGRESS;
     }
 
     public List<String> getAvailableActionsForSeat(Integer seatPosition) {
