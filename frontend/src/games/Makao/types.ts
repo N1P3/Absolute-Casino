@@ -22,6 +22,7 @@ export type MakaoResponse = {
     handCount: number;
     isCurrent: boolean;
   }>;
+};
 
 export type ErrorResponse = {
   Type: string;

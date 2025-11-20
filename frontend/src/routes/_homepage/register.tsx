@@ -33,8 +33,6 @@ function SignUpCard() {
 
   const submitForm: SubmitHandler<FormValues> = async (data: FormValues) => {
     try {
-      console.log("dzialam");
-
       const apiData = {
         firstName: data.firstName,
         lastName: data.lastName,
@@ -44,7 +42,7 @@ function SignUpCard() {
       };
       await api.post("/api/register", apiData);
       await navigate({ to: "/" });
-      toast({ title: "Pomyślnie zarejstrowano." });
+      toast({ title: "Pomyślnie zarejestrowano." });
     } catch (e) {
       if (isAxiosError(e)) {
         form.setError("root", {
@@ -54,56 +52,71 @@ function SignUpCard() {
     }
   };
 
-  useEffect(() => {
-    console.log(form.formState.errors);
-  }, [form.formState.errors]);
-
   return (
-    <div className="min-h-[80vh] flex md:items-center justify-center mt-5 md:mt-6 mb-3">
-      <Card className="md:p-5 bg-none flex flex-col items-center border-none shadow-none md:bg-gray-900 md:shadow-xl text-white">
-        {/* <div className="bg-gradient-to-r from-amber-500 to-amber-600 flex flex-col gap-2 rounded-2xl text-black py-2 px-4 w-[90%]">
-          <h4 className="text-2xl font-bold">Zarejestruj się</h4>
-          <p className="mt-1">Witaj! Wypełnij formularz aby się zarejstrować.</p>
-        </div> */}
-        <h1 className="text-left font-extrabold uppercase text-3xl italic">Rejestracja</h1>
+    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-4xl pointer-events-none z-0">
+        <div className="absolute top-0 right-1/4 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-3xl"></div>
+      </div>
+
+      <Card className="w-full max-w-2xl p-8 bg-black/40 backdrop-blur-xl border-white/10 shadow-2xl relative z-10">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-extrabold text-white tracking-tight mb-2">
+            Dołącz do <span className="text-primary">Gry</span>
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Wypełnij formularz, aby stworzyć nowe konto.
+          </p>
+        </div>
 
         <Form {...form}>
-          <form className="w-80 max-w-screen-lg sm:w-96 px-10 mt-4 flex flex-col space-y-4" onSubmit={form.handleSubmit(submitForm)}>
-            <FormField
-              name="firstName"
-              control={form.control}
-              rules={{
-                required: "Imię jest wymagane.",
-                pattern: /^[A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]+$/,
-              }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Imię</FormLabel>
-                  <FormControl>
-                    <Input value={field.value} onChange={field.onChange} placeholder="Jan" />
-                  </FormControl>
-                  <FormMessage className="text-red-500 text-xs" />
-                </FormItem>
-              )}
-            />
+          <form className="space-y-6" onSubmit={form.handleSubmit(submitForm)}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                name="firstName"
+                control={form.control}
+                rules={{
+                  required: "Imię jest wymagane.",
+                  pattern: /^[A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]+$/,
+                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-white">Imię</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="Jan" 
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-400 text-xs" />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              name="lastName"
-              control={form.control}
-              rules={{
-                required: "Nazwisko jest wymagane.",
-                pattern: /^[A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]+([ -][A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]+)?$/,
-              }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nazwisko</FormLabel>
-                  <FormControl>
-                    <Input value={field.value} onChange={field.onChange} placeholder="Kowalski" />
-                  </FormControl>
-                  <FormMessage className="text-red-500 text-xs" />
-                </FormItem>
-              )}
-            />
+              <FormField
+                name="lastName"
+                control={form.control}
+                rules={{
+                  required: "Nazwisko jest wymagane.",
+                  pattern: /^[A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]+([ -][A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż]+)?$/,
+                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-white">Nazwisko</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="Kowalski" 
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-400 text-xs" />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               name="login"
@@ -113,11 +126,15 @@ function SignUpCard() {
               }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nazwa użytkownika</FormLabel>
+                  <FormLabel className="text-white">Nazwa użytkownika</FormLabel>
                   <FormControl>
-                    <Input value={field.value} onChange={field.onChange} placeholder="Kowalski" />
+                    <Input 
+                      {...field} 
+                      placeholder="janusz213" 
+                      className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
+                    />
                   </FormControl>
-                  <FormMessage className="text-red-500 text-xs" />
+                  <FormMessage className="text-red-400 text-xs" />
                 </FormItem>
               )}
             />
@@ -131,48 +148,65 @@ function SignUpCard() {
               }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel className="text-white">Email</FormLabel>
                   <FormControl>
-                    <Input value={field.value} onChange={field.onChange} placeholder="janusz@mail.com" type="email" />
+                    <Input 
+                      {...field} 
+                      placeholder="janusz@mail.com" 
+                      type="email" 
+                      className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
+                    />
                   </FormControl>
-                  <FormMessage className="text-red-500 text-xs" />
+                  <FormMessage className="text-red-400 text-xs" />
                 </FormItem>
               )}
             />
 
-            <FormField
-              name="password"
-              control={form.control}
-              rules={{
-                required: "Hasło jest wymagane.",
-              }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Hasło</FormLabel>
-                  <FormControl>
-                    <Input value={field.value} onChange={field.onChange} placeholder="********" type="password" />
-                  </FormControl>
-                  <FormMessage className="text-red-500 text-xs" />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                name="password"
+                control={form.control}
+                rules={{
+                  required: "Hasło jest wymagane.",
+                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-white">Hasło</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="********" 
+                        type="password" 
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-400 text-xs" />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              name="confirmPassword"
-              control={form.control}
-              rules={{
-                validate: (value) => value === form.getValues("password") || "Hasła nie są takie same.",
-              }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Powtórz hasło</FormLabel>
-                  <FormControl>
-                    <Input value={field.value} onChange={field.onChange} placeholder="********" type="password" />
-                  </FormControl>
-                  <FormMessage className="text-red-500 text-xs" />
-                </FormItem>
-              )}
-            />
+              <FormField
+                name="confirmPassword"
+                control={form.control}
+                rules={{
+                  validate: (value) => value === form.getValues("password") || "Hasła nie są takie same.",
+                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-white">Powtórz hasło</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="********" 
+                        type="password" 
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-primary/50 focus:ring-primary/20"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-400 text-xs" />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               name="agreement"
@@ -182,18 +216,43 @@ function SignUpCard() {
                 <FormItem>
                   <FormControl>
                     <div className="flex items-center space-x-2">
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                      <FormLabel htmlFor="agreement">Akceptuję regulamin strony</FormLabel>
+                      <Checkbox 
+                        checked={field.value} 
+                        onCheckedChange={field.onChange} 
+                        className="border-white/50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                      />
+                      <FormLabel htmlFor="agreement" className="text-white/80 font-normal">
+                        Akceptuję regulamin strony
+                      </FormLabel>
                     </div>
                   </FormControl>
-                  <FormMessage className="text-red-500 text-xs" />
+                  <FormMessage className="text-red-400 text-xs" />
                 </FormItem>
               )}
             />
 
-            {form.formState.errors.root && <div className="text-red-500 text-center mt-3 text-xs p-3 rounded-md">{form.formState.errors.root.message}</div>}
+            {form.formState.errors.root && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm text-center p-3 rounded-md">
+                {form.formState.errors.root.message}
+              </div>
+            )}
 
-            <Button type="submit">{form.formState.isSubmitting ? <Spinner /> : "Zarejestruj się"}</Button>
+            <Button 
+              type="submit" 
+              disabled={form.formState.isSubmitting}
+              className="w-full h-11 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(234,179,8,0.3)] hover:shadow-[0_0_25px_rgba(234,179,8,0.5)] transition-all"
+            >
+              {form.formState.isSubmitting ? <Spinner /> : "Zarejestruj się"}
+            </Button>
+            
+            <div className="text-center mt-4">
+              <p className="text-muted-foreground text-sm">
+                Masz już konto?
+                <Button variant="link" className="text-primary hover:text-primary/80 font-semibold pl-1" asChild>
+                  <a href="/login">Zaloguj się</a>
+                </Button>
+              </p>
+            </div>
           </form>
         </Form>
       </Card>
