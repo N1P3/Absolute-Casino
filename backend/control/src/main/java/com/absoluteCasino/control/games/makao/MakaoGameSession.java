@@ -209,7 +209,23 @@ public class MakaoGameSession extends GameSession {
         r.setTableCard(gameRoom.getGame().getTableCard());
         r.setPlayers(gameRoom.getPlayers().stream().map(p -> new MakaoGameResponse.MakaoPlayerInfo(p.getUserId(), p.getUserName(), p.getHandSize(), p.getUserId().equals(winnerId))).toList());
         MakaoPlayer me = gameRoom.getPlayerByUserId(getUserId());
-        if (me != null) r.setPlayerHand(me.getHand());
+        if (me != null) {
+            r.setPlayerHand(me.getHand());
+        }
+        // Add opponent hand count for frontend
+        MakaoPlayer opponent = gameRoom.getPlayers().stream()
+            .filter(p -> !p.getUserId().equals(getUserId()))
+            .findFirst()
+            .orElse(null);
+        if (opponent != null) {
+            r.setOpponentHandCount(opponent.getHandSize());
+        }
+        // Add money won calculation (net profit = winner's bet, since payout is 2x bet)
+        MakaoPlayer winner = gameRoom.getWinner();
+        if (winner != null && winner.getUserId().equals(getUserId())) {
+            // Winner gets 2x their bet, so profit is 1x bet
+            r.setMoneyWon(winner.getBet());
+        }
         return r;
     }
 

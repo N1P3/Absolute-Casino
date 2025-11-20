@@ -10,7 +10,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function RenderCustomPixiElement<T extends React.JSXElementConstructor<any>>(container: Container, element: T, props: React.ComponentProps<T>): Promise<React.RefObject<React.ElementRef<T>>> {
+export function RenderCustomPixiElement<
+  T extends React.JSXElementConstructor<any>,
+>(
+  container: Container,
+  element: T,
+  props: React.ComponentProps<T>
+): Promise<React.RefObject<React.ElementRef<T>>> {
   return new Promise((resolve) => {
     const ref: { current: React.ElementRef<T> | null } = { current: null };
     const setRef = (el: React.ElementRef<T>) => {
@@ -25,7 +31,10 @@ export function RenderCustomPixiElement<T extends React.JSXElementConstructor<an
   });
 }
 
-export const websocketRequest = async <T extends object>(websocket: WebSocket, request: object) => {
+export const websocketRequest = async <T extends object>(
+  websocket: WebSocket,
+  request: object
+) => {
   return new Promise<T>((resolve, reject) => {
     const handle = (event: MessageEvent) => {
       const data = JSON.parse(event.data) as T | ErrorResponse;
@@ -41,7 +50,9 @@ export const websocketRequest = async <T extends object>(websocket: WebSocket, r
   });
 };
 
-export const useContainerSize = (containerRef: React.RefObject<HTMLDivElement>) => {
+export const useContainerSize = (
+  containerRef: React.RefObject<HTMLDivElement>
+) => {
   const [width, _setWidth] = React.useState(0);
   const [height, _setHeight] = React.useState(0);
 
@@ -63,4 +74,5 @@ export const useContainerSize = (containerRef: React.RefObject<HTMLDivElement>) 
   return { width, height };
 };
 
-export const waitFor = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+export const waitFor = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));

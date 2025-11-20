@@ -10,24 +10,117 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="icon" type="image/x-icon" href="/public/favicon.ico">
-    <link
-      href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Lora:ital,wght@0,400..700;1,400..700&family=Oswald:wght@200..700&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: ["class"],
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Outfit", "sans-serif"],
+            },
+            colors: {
+              border: "hsl(var(--border))",
+              input: "hsl(var(--input))",
+              ring: "hsl(var(--ring))",
+              background: "hsl(var(--background))",
+              foreground: "hsl(var(--foreground))",
+              primary: {
+                DEFAULT: "hsl(var(--primary))",
+                foreground: "hsl(var(--primary-foreground))",
+              },
+              secondary: {
+                DEFAULT: "hsl(var(--secondary))",
+                foreground: "hsl(var(--secondary-foreground))",
+              },
+              destructive: {
+                DEFAULT: "hsl(var(--destructive))",
+                foreground: "hsl(var(--destructive-foreground))",
+              },
+              muted: {
+                DEFAULT: "hsl(var(--muted))",
+                foreground: "hsl(var(--muted-foreground))",
+              },
+              accent: {
+                DEFAULT: "hsl(var(--accent))",
+                foreground: "hsl(var(--accent-foreground))",
+              },
+              popover: {
+                DEFAULT: "hsl(var(--popover))",
+                foreground: "hsl(var(--popover-foreground))",
+              },
+              card: {
+                DEFAULT: "hsl(var(--card))",
+                foreground: "hsl(var(--card-foreground))",
+              },
+            },
+            borderRadius: {
+              lg: "var(--radius)",
+              md: "calc(var(--radius) - 2px)",
+              sm: "calc(var(--radius) - 4px)",
+            },
+          },
+        },
+      }
+    </script>
     <style type="text/tailwindcss">
-      html {
-        color-scheme: light dark;
+      @layer base {
+        :root {
+          --background: 224 71.4% 4.1%;
+          --foreground: 45 20% 95%;
+          --card: 224 71.4% 6%;
+          --card-foreground: 45 20% 95%;
+          --popover: 224 71.4% 5%;
+          --popover-foreground: 45 20% 95%;
+          --primary: 45 93% 47%;
+          --primary-foreground: 224 71.4% 4.1%;
+          --secondary: 224 50% 15%;
+          --secondary-foreground: 45 20% 95%;
+          --muted: 224 30% 15%;
+          --muted-foreground: 224 20% 65%;
+          --accent: 45 93% 47%;
+          --accent-foreground: 224 71.4% 4.1%;
+          --destructive: 0 84.2% 60.2%;
+          --destructive-foreground: 210 20% 98%;
+          --border: 224 30% 15%;
+          --input: 224 30% 15%;
+          --ring: 45 93% 47%;
+          --radius: 0.75rem;
+        }
+        .dark {
+          --background: 224 71.4% 4.1%;
+          --foreground: 45 20% 95%;
+          --card: 224 71.4% 6%;
+          --card-foreground: 45 20% 95%;
+          --popover: 224 71.4% 5%;
+          --popover-foreground: 45 20% 95%;
+          --primary: 45 93% 47%;
+          --primary-foreground: 224 71.4% 4.1%;
+          --secondary: 224 50% 15%;
+          --secondary-foreground: 45 20% 95%;
+          --muted: 224 30% 15%;
+          --muted-foreground: 224 20% 65%;
+          --accent: 45 93% 47%;
+          --accent-foreground: 224 71.4% 4.1%;
+          --destructive: 0 62.8% 30.6%;
+          --destructive-foreground: 210 20% 98%;
+          --border: 224 30% 15%;
+          --input: 224 30% 15%;
+          --ring: 45 93% 47%;
+        }
       }
-      * {
-        @apply border-gray-200 dark:border-gray-800;
-      }
-      body {
-        @apply bg-gray-50 text-gray-950 dark:bg-gray-900 dark:text-gray-200;
+      @layer base {
+        * {
+          @apply border-border;
+        }
+        body {
+          @apply bg-background text-foreground font-sans antialiased;
+        }
       }
     </style>
   </head>
-  <body style="background-color: #0f172a">
+  <body class="bg-background text-foreground font-sans antialiased">
     <div id="app"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

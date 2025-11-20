@@ -7,23 +7,30 @@ export const canPlayCard = (
   requiredNumber: string | null,
   pendingDrawCount: number,
   drawType: string | null,
-  pendingSkipTurns?: number
+  pendingSkipTurns?: number,
+  playerToSkip?: number | null,
+  myPlayerId?: number | null
 ): boolean => {
   const cardValue = card[0] as CardValue;
   const cardSuit = card[1];
 
-  if (pendingSkipTurns && pendingSkipTurns > 0) {
-    const tableValue = tableCard[0] as CardValue;
-    const tableSuit = tableCard[1];
-
-    if (cardValue === "4") return true;
-    return cardValue === tableValue || cardSuit === tableSuit || cardValue === "A";
+  // If there's a playerToSkip set and it's me, I can only play a 4
+  if (
+    playerToSkip !== null &&
+    playerToSkip !== undefined &&
+    myPlayerId !== null &&
+    myPlayerId !== undefined
+  ) {
+    if (playerToSkip === myPlayerId) {
+      return cardValue === "4";
+    }
   }
 
   if (pendingDrawCount > 0) {
     if (drawType === "2") return cardValue === "2";
     if (drawType === "3") return cardValue === "3";
-    if (drawType === "K") return cardValue === "K" && (cardSuit === "H" || cardSuit === "S");
+    if (drawType === "K")
+      return cardValue === "K" && (cardSuit === "H" || cardSuit === "S");
     return false;
   }
 
@@ -79,4 +86,3 @@ export const getSuitSymbol = (suit: string): string => {
   };
   return suitMap[suit] || suit;
 };
-

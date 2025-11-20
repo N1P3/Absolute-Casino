@@ -22,6 +22,7 @@ export type MakaoResponse = {
     handCount: number;
     isCurrent: boolean;
   }>;
+};
 
 export type ErrorResponse = {
   Type: string;
@@ -40,6 +41,7 @@ export type GameState = {
   pendingDrawCount: number;
   drawType: string | null;
   pendingSkipTurns: number;
+  playerToSkip: number | null;
   currentPlayerId: number | null;
   isMyTurn: boolean;
   result: string | null;
