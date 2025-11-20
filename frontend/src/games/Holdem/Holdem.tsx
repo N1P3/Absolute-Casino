@@ -6,16 +6,17 @@ import React, {
     useCallback,
 } from "react";
 
-import { Stage, Sprite, Container, Graphics } from "@pixi/react";
-import { Texture, Graphics as PixiGraphics } from "pixi.js";
+import { Stage, Sprite, Container, Graphics, Text } from "@pixi/react";
+import { Texture, Graphics as PixiGraphics, Point, TextStyle, Container as PixiContainer } from "pixi.js";
 
 import bg from "@/assets/holdem/background_holdem.png?url";
 import { CardKey, loadCardTextures } from "../shared";
 import Card, { CardRef } from "../Blackjack/Card";
 
 import { Button } from "@/components/ui/button";
-import { websocketRequest } from "@/lib/utils";
+import { websocketRequest, RenderCustomPixiElement, waitFor } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { Slider } from "@/components/ui/slider";
 
 import { GAME_STAGES } from "./constants";
 
@@ -89,13 +90,52 @@ const Holdem: React.FC = () => {
 
     const [actionDeadlineMs, setActionDeadlineMs] = useState<number | null>(null);
     const [actionSecondsLeft, setActionSecondsLeft] = useState<number | null>(null);
+    const [showResultOverlay, setShowResultOverlay] = useState(false);
 
-    const cardRefs = useRef<Record<string, CardRef | null>>({});
-    const communityCardRefs = useRef<Record<string, CardRef | null>>({});
+    const communityCardRefs = useRef<CardRef[]>([]);
+    const playerCardRefs = useRef<{[playerId: string]: CardRef[]}>({});
+    const gameContainerRef = useRef<PixiContainer>();
 
     const containerRef = useRef<HTMLDivElement>(null);
 
     const backgroundTexture = useMemo(() => Texture.from(bg), []);
+
+    // Funkcje do animacji kart
+    const dealCard = async (cardKey: CardKey, position: Point, flip: boolean) => {
+        if (!gameContainerRef.current || !textures) return null;
+
+        const ref = await RenderCustomPixiElement(gameContainerRef.current, Card, {
+            facing: "back",
+            cardKey: cardKey,
+            cardTextures: textures,
+            x: TABLE_CENTER.x,
+            y: TABLE_CENTER.y - 200,
+            scale: 0.6,
+        });
+
+        await ref.current?.moveTo(position);
+        if (flip) {
+            await ref?.current?.setFacing("front");
+        }
+        return ref;
+    };
+
+    const clearCards = async () => {
+        const allCards = [
+            ...communityCardRefs.current,
+            ...Object.values(playerCardRefs.current).flat()
+        ];
+
+        for (const card of allCards) {
+            if (card?.spriteRef?.current) {
+                await card.moveTo(new Point(TABLE_CENTER.x, -200));
+                card.spriteRef.current?.destroy();
+            }
+        }
+
+        communityCardRefs.current = [];
+        playerCardRefs.current = {};
+    };
 
     const setPartialGameState = useCallback(
         (partial: Partial<HoldemGameState>) =>
@@ -454,6 +494,94 @@ const Holdem: React.FC = () => {
     const raise = () => doAction("raise", Math.max(1, betAmount));
     const allIn = () => doAction("all_in");
 
+    // Animacja kart podczas rozdania
+    useEffect(() => {
+        if (!textures || !gameState.players.length || !gameContainerRef.current) return;
+
+        const animateCards = async () => {
+            // Animuj karty community
+            if (gameState.communityCards.length > communityCardRefs.current.length) {
+                const newCards = gameState.communityCards.slice(communityCardRefs.current.length);
+                for (let i = 0; i < newCards.length; i++) {
+                    const cardKey = newCards[i];
+                    const index = communityCardRefs.current.length;
+                    const position = new Point(
+                        TABLE_CENTER.x - 2 * 60 + index * 60,
+                        TABLE_CENTER.y
+                    );
+                    const cardRef = await dealCard(cardKey as CardKey, position, true);
+                    if (cardRef?.current) {
+                        communityCardRefs.current.push(cardRef.current);
+                    }
+                    await waitFor(200);
+                }
+            }
+
+            // Animuj karty graczy
+            const me = gameState.players.find(p => p.you);
+            if (me && gameState.playerHand.length > 0) {
+                const playerId = `player-${me.seatPosition}`;
+                if (!playerCardRefs.current[playerId] || playerCardRefs.current[playerId].length < gameState.playerHand.length) {
+                    playerCardRefs.current[playerId] = playerCardRefs.current[playerId] || [];
+                    const seatPos = SEAT_POSITIONS[me.seatPosition as keyof typeof SEAT_POSITIONS];
+                    if (seatPos) {
+                        const newCards = gameState.playerHand.slice(playerCardRefs.current[playerId].length);
+                        for (let i = 0; i < newCards.length; i++) {
+                            const cardKey = newCards[i];
+                            const index = playerCardRefs.current[playerId].length;
+                            const position = new Point(
+                                seatPos.cardsX + (index - 0.5) * 45,
+                                seatPos.cardsY
+                            );
+                            const cardRef = await dealCard(cardKey as CardKey, position, true);
+                            if (cardRef?.current) {
+                                playerCardRefs.current[playerId].push(cardRef.current);
+                            }
+                            await waitFor(200);
+                        }
+                    }
+                }
+            }
+
+            // Animuj karty przeciwników (zakryte)
+            for (const player of gameState.players.filter(p => !p.you)) {
+                const playerId = `player-${player.seatPosition}`;
+                const expectedCards = gameState.state === "playing" ? 2 : 0;
+
+                if (expectedCards > 0 && (!playerCardRefs.current[playerId] || playerCardRefs.current[playerId].length < expectedCards)) {
+                    playerCardRefs.current[playerId] = playerCardRefs.current[playerId] || [];
+                    const seatPos = SEAT_POSITIONS[player.seatPosition as keyof typeof SEAT_POSITIONS];
+                    if (seatPos) {
+                        for (let i = playerCardRefs.current[playerId].length; i < expectedCards; i++) {
+                            const position = new Point(
+                                seatPos.cardsX + (i - 0.5) * 45,
+                                seatPos.cardsY
+                            );
+                            const cardRef = await dealCard("BB" as CardKey, position, false);
+                            if (cardRef?.current) {
+                                playerCardRefs.current[playerId].push(cardRef.current);
+                            }
+                            await waitFor(150);
+                        }
+                    }
+                }
+            }
+        };
+
+        animateCards();
+    }, [gameState.communityCards, gameState.playerHand, gameState.players, gameState.state, textures]);
+
+    // Czyszczenie kart po zakończeniu gry i pokazanie wyniku
+    useEffect(() => {
+        if (gameState.gameOver && gameState.result) {
+            setShowResultOverlay(true);
+            setTimeout(() => {
+                setShowResultOverlay(false);
+                clearCards();
+            }, NEXT_HAND_DELAY_MS);
+        }
+    }, [gameState.gameOver, gameState.result]);
+
     useEffect(() => {
         let destroyed = false;
 
@@ -493,20 +621,55 @@ const Holdem: React.FC = () => {
 
     if (screen === "lobby") {
         return (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-6">
-                <h1 className="text-3xl mb-4">Texas Hold&apos;em</h1>
-                <p className="text-lg mb-2">
-                    Wybierz stół (stawka ustawiana na backendzie po tableId):
-                </p>
-                <div className="flex flex-wrap gap-4 justify-center">
+            <div className="w-full h-screen flex flex-col items-center justify-center gap-8 bg-gradient-to-b from-gray-900 via-green-900 to-gray-900">
+                <div className="text-center">
+                    <h1 className="text-6xl font-bold text-white mb-4 drop-shadow-2xl">Texas Hold'em</h1>
+                    <p className="text-2xl text-green-300 mb-8">Wybierz stół i dołącz do gry</p>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
                     {TABLES.map((t) => (
                         <Button
                             key={t.tableId}
                             size="lg"
-                            className="min-w-[180px] text-xl"
-                            onClick={() => enterTable(t.tableId)}
+                            className="min-w-[200px] h-24 text-3xl font-bold bg-gradient-to-br from-green-600 to-green-800 hover:from-green-500 hover:to-green-700 shadow-2xl transform transition hover:scale-105"
+                            onClick={() => {
+                                enterTable(t.tableId);
+                                // Auto-dołączanie po wyborze blinda
+                                setTimeout(() => {
+                                    if (ws.current?.readyState === WebSocket.OPEN) {
+                                        websocketRequest(ws.current, {
+                                            command: "join_table",
+                                            tableId: t.tableId,
+                                            amount: 1000,
+                                        }).catch((e) => {
+                                            toast({
+                                                title: "Błąd",
+                                                description: e?.message || "Nie można dołączyć do stołu",
+                                                variant: "destructive",
+                                            });
+                                        });
+                                    } else {
+                                        const socket = connectWs();
+                                        setTimeout(() => {
+                                            if (socket.readyState === WebSocket.OPEN) {
+                                                websocketRequest(socket, {
+                                                    command: "join_table",
+                                                    tableId: t.tableId,
+                                                    amount: 1000,
+                                                }).catch((e) => {
+                                                    toast({
+                                                        title: "Błąd",
+                                                        description: e?.message || "Nie można dołączyć do stołu",
+                                                        variant: "destructive",
+                                                    });
+                                                });
+                                            }
+                                        }, 300);
+                                    }
+                                }, 100);
+                            }}
                         >
-                            Stół {t.tableId} – {t.label}
+                            {t.label}
                         </Button>
                     ))}
                 </div>
@@ -515,104 +678,30 @@ const Holdem: React.FC = () => {
     }
 
     const me = gameState.players.find((p) => p.you);
-    const others = gameState.players.filter((p) => !p.you);
-    const hasButton = (p: HoldemPlayer) =>
-        gameState.dealerSeat !== null &&
-        p.seatPosition === gameState.dealerSeat;
-
-    const isSeatTurn = (p: HoldemPlayer) => !!p.currentTurn;
-
-    const playerCards: JSX.Element[] = [];
-
-    if (me && gameState.playerHand.length > 0 && textures) {
-        const seatPos =
-            SEAT_POSITIONS[me.seatPosition as keyof typeof SEAT_POSITIONS];
-        if (seatPos) {
-            gameState.playerHand.forEach((cardKey, index) => {
-                playerCards.push(
-                    <Card
-                        key={`me-${index}`}
-                        ref={(ref) => (cardRefs.current[`me-${index}`] = ref)}
-                        cardKey={cardKey as CardKey}
-                        facing="front"
-                        cardTextures={textures}
-                        x={seatPos.cardsX + (index - 0.5) * 45}
-                        y={seatPos.cardsY}
-                        scale={0.6}
-                    />
-                );
-            });
-        }
-    }
-
-    if (textures) {
-        others.forEach((p) => {
-            const seatPos =
-                SEAT_POSITIONS[p.seatPosition as keyof typeof SEAT_POSITIONS];
-            if (!seatPos) return;
-
-            [0, 1].forEach((index) => {
-                playerCards.push(
-                    <Card
-                        key={`villain-${p.seatPosition}-${index}`}
-                        ref={(ref) =>
-                            (cardRefs.current[`villain-${p.seatPosition}-${index}`] = ref)
-                        }
-                        cardKey={"BB" as CardKey}
-                        facing="back"
-                        cardTextures={textures}
-                        x={seatPos.cardsX + (index - 0.5) * 45}
-                        y={seatPos.cardsY}
-                        scale={0.55}
-                    />
-                );
-            });
-        });
-    }
-
-    const BoardGlow: React.FC = () => {
-        if (!gameState.isMyTurn) return null;
-        return (
-            <Graphics
-                draw={(g: PixiGraphics) => {
-                    g.clear();
-                    g.lineStyle(3, 0x00ff00, 0.8);
-                    g.drawRoundedRect(TABLE_CENTER.x - 240, TABLE_CENTER.y - 80, 480, 160, 18);
-                }}
-            />
-        );
-    };
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex justify-between items-center p-4 bg-black/70 text-white">
-                <div className="flex gap-2 items-center">
-                    <span className="font-semibold text-lg">
+        <div className="flex flex-col h-screen bg-gradient-to-b from-gray-900 to-black">
+            {/* Górny pasek - tylko info o stole i przycisk powrotu */}
+            <div className="flex justify-between items-center p-4 bg-black/80 text-white border-b border-green-800">
+                <div className="flex gap-4 items-center">
+                    <span className="font-bold text-2xl text-green-400">
                         Stół {activeTableId}
                     </span>
-                    {gameState.state === "idle" && (
-                        <Button onClick={joinTable}>
-                            Dołącz do stołu
-                        </Button>
-                    )}
-                    {gameState.state !== "idle" && (
-                        <span className="text-sm px-2 py-1 rounded bg-emerald-700/60">
-                            Siedzisz przy stole
-                        </span>
-                    )}
-                    <Button variant="outline" onClick={leaveTable}>
-                        Lobby
-                    </Button>
+                    <span className="text-lg text-gray-300">
+                        Pot: <span className="text-yellow-400 font-bold">{gameState.pot}</span>
+                    </span>
+                    <span className="text-lg text-gray-300">
+                        {gameState.gameStage}
+                    </span>
                 </div>
 
-                <div className="flex flex-col items-end text-sm">
-                    <div>Etap: {gameState.gameStage}</div>
-                    <div>Pot: {gameState.pot}</div>
-                    <div>Aktualny bet: {gameState.currentBet}</div>
-                    <div className="text-[10px] opacity-70">
-                        Złote B = button, zielona poświata = Twój ruch
-                    </div>
-                </div>
+                <Button
+                    variant="outline"
+                    onClick={leaveTable}
+                    className="bg-red-600 hover:bg-red-700 text-white border-red-700"
+                >
+                    Opuść stół
+                </Button>
             </div>
 
             <div ref={containerRef} className="flex-1 relative">
@@ -624,132 +713,198 @@ const Holdem: React.FC = () => {
                         resolution: window.devicePixelRatio || 1,
                     }}
                 >
-                    <Sprite
-                        texture={backgroundTexture}
-                        x={0}
-                        y={0}
-                        width={1280}
-                        height={720}
-                    />
+                    <Container
+                        ref={(ref) => {
+                            if (ref) gameContainerRef.current = ref;
+                        }}
+                    >
+                        <Sprite
+                            texture={backgroundTexture}
+                            x={0}
+                            y={0}
+                            width={1280}
+                            height={720}
+                        />
 
-                    <BoardGlow />
-
-                    <Container>
-                        {gameState.communityCards.map((cardKey, index) => (
-                            <Card
-                                key={`board-${index}`}
-                                ref={(ref) =>
-                                    (communityCardRefs.current[`board-${index}`] = ref)
-                                }
-                                cardKey={cardKey as CardKey}
-                                facing="front"
-                                cardTextures={textures || ({} as any)}
-                                x={TABLE_CENTER.x - 2 * 60 + index * 60}
-                                y={TABLE_CENTER.y}
-                                scale={0.65}
+                        {gameState.isMyTurn && (
+                            <Graphics
+                                draw={(g: PixiGraphics) => {
+                                    g.clear();
+                                    g.lineStyle(4, 0x00ff00, 0.9);
+                                    g.drawRoundedRect(TABLE_CENTER.x - 260, TABLE_CENTER.y - 100, 520, 200, 20);
+                                }}
                             />
-                        ))}
+                        )}
 
-                        {playerCards}
+                        {/* Karty renderowane przez animacje */}
                     </Container>
                 </Stage>
 
+                {/* Overlay wyniku gry */}
+                {showResultOverlay && gameState.result && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-50 animate-in fade-in duration-300">
+                        <div className="bg-gradient-to-br from-green-600 to-green-900 p-12 rounded-3xl shadow-2xl border-4 border-yellow-500 transform animate-in zoom-in duration-500">
+                            <h2 className="text-6xl font-bold text-white mb-6 text-center drop-shadow-lg">
+                                {gameState.result.includes("WIN") || gameState.result.includes("wyg") ? "🎉 WYGRANA! 🎉" : "Koniec rozdania"}
+                            </h2>
+                            <p className="text-3xl text-yellow-200 text-center font-semibold">
+                                {gameState.result}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Info o graczach - lepsze czcionki i kontrast */}
                 {gameState.players.map((p) => {
-                    const seatPos =
-                        SEAT_POSITIONS[p.seatPosition as keyof typeof SEAT_POSITIONS];
+                    const seatPos = SEAT_POSITIONS[p.seatPosition as keyof typeof SEAT_POSITIONS];
                     if (!seatPos) return null;
 
                     const isHero = p.you;
-                    const isTurn = isSeatTurn(p);
+                    const isTurn = p.currentTurn;
+                    const hasButton = gameState.dealerSeat !== null && p.seatPosition === gameState.dealerSeat;
 
                     return (
                         <div
                             key={p.seatPosition}
-                            className={`absolute text-xs px-2 py-1 rounded flex items-center gap-1 transition-shadow ${
-                                isHero ? "border border-emerald-400 bg-black/80" : "bg-black/70"
+                            className={`absolute px-4 py-3 rounded-xl flex flex-col gap-1 transition-all duration-300 ${
+                                isHero
+                                    ? "bg-gradient-to-br from-yellow-600/90 to-yellow-800/90 border-2 border-yellow-400 shadow-2xl"
+                                    : "bg-gradient-to-br from-gray-800/90 to-gray-900/90 border-2 border-gray-600"
                             } ${
                                 isTurn
-                                    ? "shadow-[0_0_16px_rgba(16,185,129,0.9)]"
-                                    : "shadow-none"
-                            } ${p.folded ? "opacity-40" : ""}`}
+                                    ? "shadow-[0_0_30px_rgba(16,185,129,1)] scale-110"
+                                    : "shadow-xl"
+                            } ${p.folded ? "opacity-50 grayscale" : ""}`}
                             style={{
                                 left: seatPos.nameX,
                                 top: seatPos.nameY,
-                                transform: "translate(-50%, -50%)",
+                                transform: `translate(-50%, -50%) ${isTurn ? 'scale(1.1)' : 'scale(1)'}`,
                             }}
                         >
-                            {hasButton(p) && (
-                                <div className="w-4 h-4 rounded-full bg-yellow-400 text-black text-[10px] flex items-center justify-center mr-1">
-                                    B
-                                </div>
+                            <div className="flex items-center gap-2">
+                                {hasButton && (
+                                    <div className="w-6 h-6 rounded-full bg-yellow-400 text-black text-sm font-bold flex items-center justify-center shadow-lg">
+                                        D
+                                    </div>
+                                )}
+                                <span className={`font-bold text-lg ${isHero ? "text-white" : "text-gray-100"}`}>
+                                    {isHero ? "TY" : `Gracz ${p.userId}`}
+                                </span>
+                            </div>
+                            <div className="flex gap-3 text-base">
+                                <span className="text-green-300 font-semibold">Stack: {p.stack}</span>
+                                {p.betThisStreet > 0 && (
+                                    <span className="text-yellow-300 font-semibold">Bet: {p.betThisStreet}</span>
+                                )}
+                            </div>
+                            {p.folded && (
+                                <span className="text-red-400 font-bold text-sm">FOLD</span>
                             )}
-                            <span className="font-semibold">
-                                {isHero ? "Ty" : `Gracz ${p.userId}`}
-                            </span>
-                            <span>stack: {p.stack}</span>
-                            <span>bet: {p.betThisStreet}</span>
                             {isTurn && (
-                                <span className="text-emerald-400 ml-1 text-[10px]">
-                                    ruch
+                                <span className="text-green-300 font-bold text-sm animate-pulse">
+                                    ▶ RUCH
                                 </span>
                             )}
                         </div>
                     );
                 })}
 
-                <div className="absolute bottom-4 right-4 flex flex-col gap-2 bg-black/70 text-white p-3 rounded w-[360px]">
-                    <div className="text-sm mb-1">
-                        {gameState.state === "waiting" &&
-                            (gameState.result || "Czekanie na kolejne rozdanie...")}
-                        {gameState.state === "idle" && "Nie siedzisz przy stole"}
-                        {gameState.state === "playing" &&
-                            (gameState.isMyTurn
-                                ? "Twój ruch"
-                                : "Ruch przeciwnika")}
-                    </div>
+                {/* Przyciski akcji - przeprojektowane na dole, pięknie */}
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-4 items-center z-20">
+                    {gameState.isMyTurn && gameState.state === "playing" && (
+                        <>
+                            {/* Timer */}
+                            {actionSecondsLeft !== null && (
+                                <div className="bg-red-600/90 px-6 py-2 rounded-full shadow-2xl animate-pulse">
+                                    <span className="text-white font-bold text-xl">
+                                        Auto-fold za {actionSecondsLeft}s
+                                    </span>
+                                </div>
+                            )}
 
-                    {gameState.isMyTurn && actionSecondsLeft !== null && (
-                        <div className="text-xs text-red-300 mb-1">
-                            Auto-fold za {actionSecondsLeft}s
-                        </div>
+                            {/* Główne przyciski akcji */}
+                            <div className="bg-black/80 backdrop-blur-md px-8 py-6 rounded-3xl shadow-2xl border-2 border-green-700">
+                                <div className="flex gap-3 mb-4">
+                                    <Button
+                                        onClick={fold}
+                                        disabled={!canAction("fold")}
+                                        className="bg-red-600 hover:bg-red-700 text-white font-bold text-lg px-8 py-6 disabled:opacity-30"
+                                        size="lg"
+                                    >
+                                        Fold
+                                    </Button>
+                                    <Button
+                                        onClick={check}
+                                        disabled={!canAction("check")}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg px-8 py-6 disabled:opacity-30"
+                                        size="lg"
+                                    >
+                                        Check
+                                    </Button>
+                                    <Button
+                                        onClick={call}
+                                        disabled={!canAction("call")}
+                                        className="bg-green-600 hover:bg-green-700 text-white font-bold text-lg px-8 py-6 disabled:opacity-30"
+                                        size="lg"
+                                    >
+                                        Call
+                                    </Button>
+                                    <Button
+                                        onClick={raise}
+                                        disabled={!canAction("raise")}
+                                        className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold text-lg px-8 py-6 disabled:opacity-30"
+                                        size="lg"
+                                    >
+                                        Raise
+                                    </Button>
+                                    <Button
+                                        onClick={allIn}
+                                        disabled={!canAction("all_in")}
+                                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-lg px-8 py-6 disabled:opacity-30"
+                                        size="lg"
+                                    >
+                                        All-In
+                                    </Button>
+                                </div>
+
+                                {/* Slider do betowania */}
+                                {(canAction("bet") || canAction("raise")) && (
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-white font-semibold text-lg min-w-[80px]">Kwota:</span>
+                                            <Slider
+                                                value={[betAmount]}
+                                                onValueChange={(v) => setBetAmount(v[0])}
+                                                min={gameState.currentBet || 10}
+                                                max={me?.stack || 1000}
+                                                step={10}
+                                                className="w-80"
+                                            />
+                                            <span className="text-yellow-400 font-bold text-2xl min-w-[100px]">
+                                                {betAmount}
+                                            </span>
+                                        </div>
+                                        <Button
+                                            onClick={bet}
+                                            disabled={!canAction("bet")}
+                                            className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-lg py-4 disabled:opacity-30"
+                                        >
+                                            Bet {betAmount}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </>
                     )}
 
-                    {gameState.lastAction && (
-                        <div className="text-xs text-emerald-300 mb-1">
-                            {gameState.lastAction}
+                    {/* Info o ostatniej akcji */}
+                    {gameState.lastAction && !gameState.isMyTurn && (
+                        <div className="bg-blue-600/90 px-6 py-3 rounded-2xl shadow-xl">
+                            <span className="text-white font-semibold text-lg">
+                                Ostatnia akcja: {gameState.lastAction}
+                            </span>
                         </div>
                     )}
-
-                    <div className="flex gap-2 items-center">
-                        <span>Bet:</span>
-                        <input
-                            type="number"
-                            className="w-20 px-2 py-1 rounded bg-background text-foreground text-black"
-                            value={betAmount}
-                            onChange={(e) => setBetAmount(Number(e.target.value))}
-                            min={1}
-                        />
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                        <Button onClick={call} disabled={!canAction("call")}>
-                            Call
-                        </Button>
-                        <Button onClick={check} disabled={!canAction("check")}>
-                            Check
-                        </Button>
-                        <Button onClick={fold} disabled={!canAction("fold")}>
-                            Fold
-                        </Button>
-                        <Button onClick={bet} disabled={!canAction("bet")}>
-                            Bet
-                        </Button>
-                        <Button onClick={raise} disabled={!canAction("raise")}>
-                            Raise
-                        </Button>
-                        <Button onClick={allIn} disabled={!canAction("all_in")}>
-                            All-in
-                        </Button>
-                    </div>
                 </div>
             </div>
         </div>
