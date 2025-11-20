@@ -24,9 +24,9 @@ public class MakaoGameRoom {
         this.deckSize = 0;
     }
 
-    public synchronized boolean addPlayer(Integer userId, String userName) {
+    public synchronized boolean addPlayer(MakaoPlayer player) {
         if (players.size() >= 2) return false;
-        players.add(new MakaoPlayer(userId, userName));
+        players.add(player);
         return true;
     }
 
