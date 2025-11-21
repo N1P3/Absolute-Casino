@@ -58,6 +58,7 @@ export const useContainerSize = (
 
   React.useEffect(() => {
     if (!containerRef.current) return;
+    console.log(containerRef.current);
     const setWidth = debounce(_setWidth, 100);
     const setHeight = debounce(_setHeight, 100);
     const observer = new ResizeObserver((entries) => {
