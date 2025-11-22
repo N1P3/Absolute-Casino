@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 2760 1680"
+    width="2760"
+    height="1680"
+>
+    <!-- Rail Gradient - Simulates leather curvature -->
+    <defs>
+        <linearGradient id="railGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#2a1a10" />
+            <stop offset="15%" stop-color="#5c3a22" />
+            <stop offset="40%" stop-color="#3d2616" />
+            <stop offset="80%" stop-color="#1a0f08" />
+            <stop offset="100%" stop-color="#0d0704" />
+        </linearGradient>
+
+        <!-- Rail Highlight - Top shine -->
+        <linearGradient id="railHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.15)" />
+            <stop offset="20%" stop-color="rgba(255,255,255,0)" />
+        </linearGradient>
+
+        <!-- Felt Gradient - Radial lighting with more depth -->
+        <radialGradient id="feltGradient" cx="50%" cy="50%" r="60%" fx="50%" fy="50%">
+            <stop offset="0%" stop-color="#0f5e36" />
+            <stop offset="60%" stop-color="#0a4527" />
+            <stop offset="90%" stop-color="#06331e" />
+            <stop offset="100%" stop-color="#021a0d" />
+        </radialGradient>
+
+        <!-- Gold Gradient for Logo -->
+        <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#bf953f" />
+            <stop offset="25%" stop-color="#fcf6ba" />
+            <stop offset="50%" stop-color="#b38728" />
+            <stop offset="75%" stop-color="#fbf5b7" />
+            <stop offset="100%" stop-color="#aa771c" />
+        </linearGradient>
+
+        <!-- Inner Shadow for the rail depth (Values doubled) -->
+        <filter id="innerShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feComponentTransfer in="SourceAlpha">
+                <feFuncA type="table" tableValues="1 0" />
+            </feComponentTransfer>
+            <feGaussianBlur stdDeviation="16" />
+            <feOffset dx="0" dy="8" result="offsetblur" />
+            <feFlood flood-color="rgba(0,0,0,0.8)" result="color" />
+            <feComposite in2="offsetblur" operator="in" />
+            <feComposite in2="SourceAlpha" operator="in" />
+            <feMerge>
+                <feMergeNode in="SourceGraphic" />
+                <feMergeNode />
+            </feMerge>
+        </filter>
+
+        <!-- Drop Shadow for the whole table (Values doubled) -->
+        <filter id="tableShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="40" />
+            <feOffset dx="0" dy="40" result="offsetblur" />
+            <feComponentTransfer>
+                <feFuncA type="linear" slope="0.7" />
+            </feComponentTransfer>
+            <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+    </defs>
+
+    <!-- Main Group with Drop Shadow -->
+    <g filter="url(#tableShadow)">
+        <!-- 1. The Rail (Outer Rim) -->
+        <rect
+            x="40"
+            y="40"
+            width="2680"
+            height="1600"
+            rx="800"
+            ry="800"
+            fill="url(#railGradient)"
+            stroke="#1a0f08"
+            stroke-width="4"
+        />
+
+        <!-- Rail Shine/Highlight Overlay -->
+        <rect
+            x="60"
+            y="60"
+            width="2640"
+            height="1560"
+            rx="780"
+            ry="780"
+            fill="none"
+            stroke="url(#railHighlight)"
+            stroke-width="30"
+            opacity="0.6"
+        />
+
+        <!-- 2. The Felt (Playing Surface) -->
+        <rect
+            x="160"
+            y="160"
+            width="2440"
+            height="1360"
+            rx="680"
+            ry="680"
+            fill="url(#feltGradient)"
+            filter="url(#innerShadow)"
+        />
+
+        <!-- 3. Betting Line / Decorations -->
+        <rect
+            x="500"
+            y="440"
+            width="1760"
+            height="800"
+            rx="400"
+            ry="400"
+            fill="none"
+            stroke="rgba(255,255,255,0.1)"
+            stroke-width="4"
+            stroke-dasharray="20,20"
+        />
+
+        <!-- Center Logo / Decoration (Transform coordinates doubled) -->
+        <g opacity="0.8" transform="translate(1380, 840)">
+            <circle cx="0" cy="0" r="180" fill="none" stroke="url(#goldGradient)" stroke-width="6"
+                opacity="0.5" />
+            <circle cx="0" cy="0" r="170" fill="none" stroke="url(#goldGradient)" stroke-width="2"
+                opacity="0.3" />
+
+            <!-- Text values and CSS shadows doubled -->
+            <text x="0" y="20" text-anchor="middle" fill="url(#goldGradient)" font-family="serif"
+                font-size="64" font-weight="bold" letter-spacing="8"
+                style="text-shadow: 0px 4px 8px rgba(0,0,0,0.5);">ABSOLUTE</text>
+            <text x="0" y="80" text-anchor="middle" fill="url(#goldGradient)"
+                font-family="sans-serif" font-size="28" letter-spacing="16" font-weight="300"
+                style="text-shadow: 0px 4px 8px rgba(0,0,0,0.5);">CASINO</text>
+
+            <!-- Paths and strokes doubled -->
+            <path d="M -100 -50 L 100 -50" stroke="url(#goldGradient)" stroke-width="2"
+                opacity="0.6" />
+            <path d="M -100 110 L 100 110" stroke="url(#goldGradient)" stroke-width="2"
+                opacity="0.6" />
+
+            <!-- Decorative suit symbols positions and sizes doubled -->
+            <text x="-140" y="10" fill="url(#goldGradient)" font-size="40" opacity="0.4">♠</text>
+            <text x="140" y="10" fill="url(#goldGradient)" font-size="40" opacity="0.4">♥</text>
+            <text x="0" y="-120" text-anchor="middle" fill="url(#goldGradient)" font-size="40"
+                opacity="0.4">♣</text>
+            <text x="0" y="150" text-anchor="middle" fill="url(#goldGradient)" font-size="40"
+                opacity="0.4">♦</text>
+        </g>
+    </g>
+</svg>

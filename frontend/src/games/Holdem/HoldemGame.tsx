@@ -1,12 +1,11 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback } from "react";
 
 import { Stage, Container, Graphics, Sprite } from "@pixi/react";
-import { Texture, Graphics as PixiGraphics, Point, Container as PixiContainer } from "pixi.js";
-import bg from "@/assets/holdem/background_holdem.png?url";
+import { Texture, Graphics as PixiGraphics, Point, Container as PixiContainer, Assets, SCALE_MODES } from "pixi.js";
 
 import { CardKey } from "../shared";
 import Card, { CardRef } from "../Blackjack/Card";
-
+import PokerTableSvg from "@/assets/holdem/PokerTable.svg?raw";
 import { Button } from "@/components/ui/button";
 import { websocketRequest, RenderCustomPixiElement, waitFor, useContainerSize } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -19,17 +18,19 @@ import { HoldemGameState, HoldemResponse } from "./types";
 const ACTION_TIMEOUT_MS = 20_000;
 const NEXT_HAND_DELAY_MS = 3_000;
 
-const TABLE_CENTER = { x: 690, y: 420 };
+const TABLE_WIDTH = 2760;
+const TABLE_HEIGHT = 1680;
+const TABLE_CENTER = { x: TABLE_WIDTH / 2, y: TABLE_HEIGHT / 2 };
 
 const SEAT_POSITIONS: {
   [seat: number]: { nameX: number; nameY: number; cardsX: number; cardsY: number };
 } = {
-  0: { nameX: 680, nameY: 620, cardsX: 680, cardsY: 550 }, // Hero moved up
-  1: { nameX: 1080, nameY: 580, cardsX: 1080, cardsY: 510 },
-  2: { nameX: 1080, nameY: 230, cardsX: 1080, cardsY: 160 },
-  3: { nameX: 680, nameY: 180, cardsX: 680, cardsY: 110 },
-  4: { nameX: 320, nameY: 230, cardsX: 320, cardsY: 160 },
-  5: { nameX: 320, nameY: 580, cardsX: 320, cardsY: 510 },
+  0: { nameX: 1380, nameY: 1400, cardsX: 1380, cardsY: 1100 }, // Hero (Bottom Center) - Reverted to closer to original (doubled)
+  1: { nameX: 2160, nameY: 1160, cardsX: 2160, cardsY: 1020 }, // Right Bottom (doubled)
+  2: { nameX: 2160, nameY: 460, cardsX: 2160, cardsY: 320 }, // Right Top (doubled)
+  3: { nameX: 1380, nameY: 360, cardsX: 1380, cardsY: 220 }, // Top Center (doubled)
+  4: { nameX: 640, nameY: 460, cardsX: 640, cardsY: 320 }, // Left Top (doubled)
+  5: { nameX: 640, nameY: 1160, cardsX: 640, cardsY: 1020 }, // Left Bottom (doubled)
 };
 
 interface HoldemGameProps {
@@ -76,17 +77,11 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useContainerSize(containerRef);
 
-  const backgroundTexture = useMemo(() => Texture.from(bg), []);
-  const scale = useMemo(() => {
-    return Math.min(width / backgroundTexture.width, height / backgroundTexture.height);
-  }, [width, height, backgroundTexture]);
+  const TableTexture = Texture.from(PokerTableSvg);
 
-  const cardSize = useMemo(() => {
-    return {
-      width: textures.KC.width,
-      height: textures.KC.height,
-    };
-  }, [textures]);
+  const scale = useMemo(() => {
+    return Math.min(width / TableTexture.width, height / TableTexture.height);
+  }, [width, height]);
 
   // Funkcje do animacji kart
   const dealCard = async (cardKey: CardKey, position: Point, flip: boolean) => {
@@ -488,8 +483,6 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
 
   const me = gameState.players.find((p) => p.you);
 
-  // console.log(aspectRatio)
-
   return (
     <div className="flex flex-col h-screen bg-background relative overflow-hidden">
       {/* Górny pasek */}
@@ -521,12 +514,11 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
       </div>
 
       {/* Main Game Container - Centered with Aspect Ratio */}
-      <div className="flex-1 flex items-center justify-center p-12 overflow-hidden">
+      <div className="flex-1 flex items-center justify-center pb-[150px] overflow-hidden">
         <div
           ref={containerRef}
-          className="shadow-2xl shadow-black"
           style={{
-            aspectRatio: `${backgroundTexture.width} / ${backgroundTexture.height}`,
+            aspectRatio: `${TableTexture.width} / ${TableTexture.height}`,
             height: "100%",
             overflow: "hidden",
             position: "relative",
@@ -537,8 +529,9 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
             width={width}
             height={height}
             options={{
-              backgroundColor: 0x0f172a,
+              backgroundColor: { h: 224, s: 71.4, l: 4.1 },
               resolution: window.devicePixelRatio || 1,
+              antialias: true,
               autoDensity: true,
             }}
             className="absolute inset-0"
@@ -547,29 +540,8 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
               ref={(ref) => {
                 if (ref) gameContainerRef.current = ref;
               }}
-              // scale={scale}
             >
-              <Sprite texture={backgroundTexture} scale={scale} />
-
-              {/* {gameState.isMyTurn && ( */}
-              <Graphics
-                draw={(g: PixiGraphics) => {
-                  const PADDING = 20;
-                  const cardsWidth = cardSize.width * 0.4 * 5 - 2 * 60;
-                  const cardsHeight = cardSize.height * 0.4;
-                  console.log(cardSize.width, cardSize.height, scale);
-                  g.clear();
-                  g.lineStyle(4, 0xeab308, 0.5); // Gold glow
-                  g.drawRoundedRect(
-                    (TABLE_CENTER.x - cardsWidth / 2 - PADDING / 2) * scale,
-                    (TABLE_CENTER.y - cardsHeight / 2 - PADDING / 2 - 100) * scale,
-                    (cardsWidth + PADDING) * scale,
-                    (cardsHeight + PADDING) * scale,
-                    20
-                  );
-                }}
-              />
-              {/* )} */}
+              <Sprite roundPixels texture={TableTexture} scale={scale} />
 
               {/* Karty renderowane przez animacje */}
             </Container>
@@ -646,91 +618,93 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
                 </div>
               );
             })}
-
-            {/* Przyciski akcji */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col gap-2 items-center z-20 w-full max-w-3xl px-4 pointer-events-auto">
-              {gameState.isMyTurn && gameState.state === "playing" && (
-                <>
-                  {/* Timer */}
-                  {actionSecondsLeft !== null && (
-                    <div className="bg-destructive/90 px-4 py-1 rounded-full shadow-2xl animate-pulse border border-white/10">
-                      <span className="text-white font-bold text-sm">Auto-fold za {actionSecondsLeft}s</span>
-                    </div>
-                  )}
-
-                  {/* Główne przyciski akcji */}
-                  <div className="bg-black/80 backdrop-blur-xl px-6 py-4 rounded-2xl shadow-2xl border border-white/10 w-full">
-                    <div className="flex flex-wrap justify-center gap-2 mb-4">
-                      <Button
-                        onClick={fold}
-                        disabled={!canAction("fold")}
-                        className="bg-destructive hover:bg-destructive/90 text-white font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
-                      >
-                        Fold
-                      </Button>
-                      <Button
-                        onClick={check}
-                        disabled={!canAction("check")}
-                        className="bg-secondary hover:bg-secondary/90 text-secondary-foreground font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
-                      >
-                        Check
-                      </Button>
-                      <Button
-                        onClick={call}
-                        disabled={!canAction("call")}
-                        className="bg-green-600 hover:bg-green-700 text-white font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
-                      >
-                        Call
-                      </Button>
-                      <Button
-                        onClick={raise}
-                        disabled={!canAction("raise")}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
-                      >
-                        Raise
-                      </Button>
-                      <Button
-                        onClick={allIn}
-                        disabled={!canAction("all_in")}
-                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
-                      >
-                        All-In
-                      </Button>
-                    </div>
-
-                    {/* Slider do betowania */}
-                    {(canAction("bet") || canAction("raise")) && (
-                      <div className="flex flex-col gap-3 max-w-xl mx-auto bg-white/5 p-3 rounded-xl border border-white/5">
-                        <div className="flex items-center gap-4">
-                          <span className="text-muted-foreground font-semibold text-xs uppercase tracking-wider min-w-[50px]">Kwota</span>
-                          <Slider value={[betAmount]} onValueChange={(v: number[]) => setBetAmount(v[0])} min={gameState.currentBet || 10} max={me?.stack || 1000} step={10} className="flex-1" />
-                          <div className="bg-black/40 px-3 py-1 rounded-lg border border-white/10 min-w-[80px] text-center">
-                            <span className="text-primary font-mono font-bold text-lg">{betAmount}</span>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={bet}
-                          disabled={!canAction("bet")}
-                          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base h-10 rounded-lg shadow-lg disabled:opacity-50 transition-all"
-                        >
-                          Postaw {betAmount}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* Info o ostatniej akcji */}
-              {gameState.lastAction && !gameState.isMyTurn && (
-                <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-xl animate-in slide-in-from-bottom-4">
-                  <span className="text-white font-medium text-sm">
-                    <span className="text-muted-foreground">Ostatnia akcja:</span> {gameState.lastAction}
-                  </span>
-                </div>
-              )}
-            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Przyciski akcji - Moved outside game container to be at bottom of screen */}
+      <div className="absolute bottom-0 left-0 w-full p-4 z-50 pointer-events-none">
+        <div className="flex flex-col gap-2 items-center w-full max-w-3xl mx-auto pointer-events-auto">
+          {/* {gameState.isMyTurn && gameState.state === "playing" && ( */}
+          <>
+            {/* Timer */}
+            {actionSecondsLeft !== null && (
+              <div className="bg-destructive/90 px-4 py-1 rounded-full shadow-2xl animate-pulse border border-white/10 mb-2">
+                <span className="text-white font-bold text-sm">Auto-fold za {actionSecondsLeft}s</span>
+              </div>
+            )}
+
+            {/* Główne przyciski akcji */}
+            <div className="bg-black/10 backdrop-blur-xl px-6 py-4 rounded-2xl shadow-2xl border border-white/5 w-full">
+              <div className="flex flex-wrap justify-center gap-2 mb-4">
+                <Button
+                  onClick={fold}
+                  disabled={!canAction("fold")}
+                  className="bg-destructive hover:bg-destructive/90 text-white font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
+                >
+                  Fold
+                </Button>
+                <Button
+                  onClick={check}
+                  disabled={!canAction("check")}
+                  className="bg-secondary hover:bg-secondary/90 text-secondary-foreground font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
+                >
+                  Check
+                </Button>
+                <Button
+                  onClick={call}
+                  disabled={!canAction("call")}
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
+                >
+                  Call
+                </Button>
+                <Button
+                  onClick={raise}
+                  disabled={!canAction("raise")}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
+                >
+                  Raise
+                </Button>
+                <Button
+                  onClick={allIn}
+                  disabled={!canAction("all_in")}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-base h-10 px-6 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
+                >
+                  All-In
+                </Button>
+              </div>
+
+              {/* Slider do betowania */}
+              {/* {(canAction("bet") || canAction("raise")) && ( */}
+              <div className="flex flex-col gap-3 max-w-xl mx-auto bg-white/5 p-3 rounded-xl border border-white/5">
+                <div className="flex items-center gap-4">
+                  <span className="text-muted-foreground font-semibold text-xs uppercase tracking-wider min-w-[50px]">Kwota</span>
+                  <Slider value={[betAmount]} onValueChange={(v: number[]) => setBetAmount(v[0])} min={gameState.currentBet || 10} max={me?.stack || 1000} step={10} className="flex-1" />
+                  <div className="bg-black/40 px-3 py-1 rounded-lg border border-white/10 min-w-[80px] text-center">
+                    <span className="text-primary font-mono font-bold text-lg">{betAmount}</span>
+                  </div>
+                </div>
+                <Button
+                  onClick={bet}
+                  disabled={!canAction("bet")}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base h-10 rounded-lg shadow-lg disabled:opacity-50 transition-all"
+                >
+                  Postaw {betAmount}
+                </Button>
+              </div>
+              {/* )} */}
+            </div>
+          </>
+          {/* )} */}
+
+          {/* Info o ostatniej akcji */}
+          {gameState.lastAction && !gameState.isMyTurn && (
+            <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-xl animate-in slide-in-from-bottom-4">
+              <span className="text-white font-medium text-sm">
+                <span className="text-muted-foreground">Ostatnia akcja:</span> {gameState.lastAction}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
