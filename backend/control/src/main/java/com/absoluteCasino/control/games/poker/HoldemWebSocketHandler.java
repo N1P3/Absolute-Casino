@@ -35,8 +35,8 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
 
     @Autowired
     public HoldemWebSocketHandler(JWTUtil jwtUtil,
-                                  BalanceUpdateManager balanceUpdateManager,
-                                  HoldemGameService holdemGameService) {
+            BalanceUpdateManager balanceUpdateManager,
+            HoldemGameService holdemGameService) {
         this.jwtUtil = jwtUtil;
         this.balanceUpdateManager = balanceUpdateManager;
         this.holdemGameService = holdemGameService;
@@ -61,7 +61,7 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
             sessionToUserMap.put(session.getId(), userId);
             userSessions.put(userId, session);
 
-            session.sendMessage(new TextMessage("{\"type\":\"CONNECTED\"}"));
+            sendMessage(session, new TextMessage("{\"type\":\"CONNECTED\"}"));
             log.info("User " + userId + " connected to Hold'em");
         } catch (Exception e) {
             log.severe("Error in afterConnectionEstablished: " + e.getMessage());
@@ -71,11 +71,11 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(@NonNull WebSocketSession session,
-                                     @NonNull TextMessage message) throws Exception {
+            @NonNull TextMessage message) throws Exception {
 
         Long userId = sessionToUserMap.get(session.getId());
         if (userId == null) {
-            session.sendMessage(error("Brak powiązanego użytkownika"));
+            sendMessage(session, error("Brak powiązanego użytkownika"));
             return;
         }
         String payload = message.getPayload();
@@ -83,7 +83,7 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
         try {
             node = objectMapper.readTree(payload);
         } catch (Exception e) {
-            session.sendMessage(error("Nieprawidłowy format JSON"));
+            sendMessage(session, error("Nieprawidłowy format JSON"));
             return;
         }
 
@@ -102,11 +102,11 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
                 case "bet" -> handleActionWithAmount(userId, node, PlayerActionType.BET);
                 case "raise" -> handleActionWithAmount(userId, node, PlayerActionType.RAISE);
                 case "all_in" -> handleAction(userId, node, PlayerActionType.ALL_IN);
-                default -> session.sendMessage(error("Nieznany command: " + command));
+                default -> sendMessage(session, error("Nieznany command: " + command));
             }
         } catch (Exception e) {
             log.severe("Error handling command: " + e.getMessage());
-            session.sendMessage(error("Błąd serwera"));
+            sendMessage(session, error("Błąd serwera"));
         }
     }
 
@@ -114,11 +114,11 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
         int tableId = node.get("tableId").asInt();
         long buyIn = node.has("amount") ? node.get("amount").asLong() : 1000L;
 
-        BalanceUpdateManager.BalanceUpdateResult result =
-                balanceUpdateManager.sendBalanceUpdate(userId.intValue(), -buyIn);
+        BalanceUpdateManager.BalanceUpdateResult result = balanceUpdateManager.sendBalanceUpdate(userId.intValue(),
+                -buyIn);
 
         if (!result.isSuffFunds()) {
-            session.sendMessage(error("Brak wystarczających środków"));
+            sendMessage(session, error("Brak wystarczających środków"));
             return;
         }
 
@@ -133,15 +133,15 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
         int tableId = node.get("tableId").asInt();
         long amount = node.has("amount") ? node.get("amount").asLong() : 0L;
         if (amount <= 0) {
-            session.sendMessage(error("Nieprawidłowa kwota rebuy"));
+            sendMessage(session, error("Nieprawidłowa kwota rebuy"));
             return;
         }
 
-        BalanceUpdateManager.BalanceUpdateResult result =
-                balanceUpdateManager.sendBalanceUpdate(userId.intValue(), -amount);
+        BalanceUpdateManager.BalanceUpdateResult result = balanceUpdateManager.sendBalanceUpdate(userId.intValue(),
+                -amount);
 
         if (!result.isSuffFunds()) {
-            session.sendMessage(error("Brak wystarczających środków na rebuy"));
+            sendMessage(session, error("Brak wystarczających środków na rebuy"));
             return;
         }
 
@@ -183,7 +183,7 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
         if (errorMsg != null) {
             WebSocketSession s = userSessions.get(userId);
             if (s != null && s.isOpen()) {
-                s.sendMessage(error(errorMsg));
+                sendMessage(s, error(errorMsg));
             }
             return;
         }
@@ -197,7 +197,7 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
         if (errorMsg != null) {
             WebSocketSession s = userSessions.get(userId);
             if (s != null && s.isOpen()) {
-                s.sendMessage(error(errorMsg));
+                sendMessage(s, error(errorMsg));
             }
             return;
         }
@@ -211,20 +211,21 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
     private void sendTableStateToAll(int tableId) throws IOException {
         HoldemTable table = holdemGameService.getTable(tableId);
         for (Seat seat : table.getSeats()) {
-            if (!seat.isOccupied()) continue;
+            if (!seat.isOccupied())
+                continue;
             Long userId = seat.getUserId();
             WebSocketSession s = userSessions.get(userId);
             if (s != null && s.isOpen()) {
                 HoldemTableStateResponse response = HoldemTableStateResponse.from(table, userId);
                 String json = objectMapper.writeValueAsString(response);
-                s.sendMessage(new TextMessage(json));
+                sendMessage(s, new TextMessage(json));
             }
         }
     }
 
     @Override
     public void afterConnectionClosed(@NonNull WebSocketSession session,
-                                      @NonNull CloseStatus status) {
+            @NonNull CloseStatus status) {
         Long userId = sessionToUserMap.remove(session.getId());
         if (userId != null) {
             userSessions.remove(userId);
@@ -244,7 +245,8 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
     private void tryAutoStartHand(int tableId) {
         try {
             HoldemTable table = holdemGameService.getTable(tableId);
-            if (table == null) return;
+            if (table == null)
+                return;
 
             long activePlayers = table.getSeats().stream()
                     .filter(Seat::isOccupied)
@@ -256,6 +258,14 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
             }
         } catch (Exception e) {
             log.severe("Error in tryAutoStartHand: " + e.getMessage());
+        }
+    }
+
+    private void sendMessage(WebSocketSession session, TextMessage message) throws IOException {
+        synchronized (session) {
+            if (session.isOpen()) {
+                session.sendMessage(message);
+            }
         }
     }
 }

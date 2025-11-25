@@ -29,18 +29,15 @@ public class HoldemGameService {
     }
 
     public HoldemTable createTableIfAbsent(int tableId) {
-        return tables.computeIfAbsent(tableId, id ->
-                new HoldemTable(
-                        id,
-                        maxSeatsPerTable,
-                        new Blinds(10, 20),
-                        1000L,
-                        4000L
-                )
-        );
+        return tables.computeIfAbsent(tableId, id -> new HoldemTable(
+                id,
+                maxSeatsPerTable,
+                new Blinds(10, 20),
+                1000L,
+                4000L));
     }
 
-    public void joinTable(int tableId, Long userId, long buyIn) {
+    public synchronized void joinTable(int tableId, Long userId, long buyIn) {
         HoldemTable table = createTableIfAbsent(tableId);
 
         boolean alreadySeated = table.getSeats().stream()
@@ -64,7 +61,7 @@ public class HoldemGameService {
         }
     }
 
-    public void rebuy(int tableId, Long userId, long amount) {
+    public synchronized void rebuy(int tableId, Long userId, long amount) {
         if (amount <= 0) {
             return;
         }
@@ -77,8 +74,32 @@ public class HoldemGameService {
         }
     }
 
-    public void leaveTable(int tableId, Long userId) {
+    public synchronized void leaveTable(int tableId, Long userId) {
         HoldemTable table = getTable(tableId);
+
+        // Check if player is in active hand
+        if (table.getCurrentHand() != null) {
+            Seat seat = findSeatByUserId(table, userId);
+            if (seat != null) {
+                PlayerHandState ps = table.getCurrentHand().getPlayers().get(seat.getPosition());
+                if (ps != null && !ps.isFolded()) {
+                    ps.setFolded(true);
+                    ps.setActedThisStreet(true);
+                    table.setLastActionText("Seat " + seat.getPosition() + ": FOLD (Left Table)");
+
+                    // If it was their turn, we need to advance the game state
+                    if (table.getCurrentHand().getCurrentPlayerSeat() == seat.getPosition()) {
+                        // Logic to move next will be handled by check at end of method or explicit
+                        // call?
+                        // Actually, we should just let the normal flow handle it if possible,
+                        // but since this is a void method, we might need to trigger state update.
+                        // However, leaveTable is usually called from outside the game loop.
+                        // Let's trigger a check.
+                        checkGameProgress(table, table.getCurrentHand());
+                    }
+                }
+            }
+        }
 
         for (Seat seat : table.getSeats()) {
             if (userId.equals(seat.getUserId())) {
@@ -98,7 +119,17 @@ public class HoldemGameService {
         }
     }
 
-    public void startHandIfPossible(int tableId) {
+    private void checkGameProgress(HoldemTable table, HoldemHand hand) {
+        if (isHandEndedByFolds(hand)) {
+            finishHandByFolds(table, hand);
+        } else if (isBettingRoundEnded(table, hand)) {
+            advanceStreet(table, hand);
+        } else {
+            moveToNextPlayer(table, hand);
+        }
+    }
+
+    public synchronized void startHandIfPossible(int tableId) {
         HoldemTable table = tables.get(tableId);
         if (table == null) {
             return;
@@ -130,10 +161,10 @@ public class HoldemGameService {
         table.setStatus(TableStatus.HAND_IN_PROGRESS);
     }
 
-    public String handlePlayerAction(int tableId,
-                                     Long userId,
-                                     PlayerActionType action,
-                                     long amount) {
+    public synchronized String handlePlayerAction(int tableId,
+            Long userId,
+            PlayerActionType action,
+            long amount) {
 
         HoldemTable table = getTable(tableId);
         HoldemHand hand = table.getCurrentHand();
@@ -201,23 +232,30 @@ public class HoldemGameService {
                 if (hand.getCurrentBet() == 0) {
                     return "Nie możesz raisować, nie ma betu – użyj bet";
                 }
-                if (amount <= hand.getCurrentBet()) {
-                    return "Raise musi być większy niż obecny bet (" + hand.getCurrentBet() + ")";
+
+                long minRaise = Math.max(table.getBlinds().bigBlind(), hand.getLastRaiseSize());
+                long minTotal = hand.getCurrentBet() + minRaise;
+
+                if (amount < minTotal) {
+                    return "Raise musi być do co najmniej " + minTotal + " (min przebicie: " + minRaise + ")";
                 }
+
                 long newBetAmount = amount;
                 long alreadyPut = ps.getChipsInPotThisStreet();
                 long toPutNow = newBetAmount - alreadyPut;
+
                 if (toPutNow <= 0) {
                     return "Nieprawidłowa kwota raisu";
-                }
-                if (toPutNow < table.getBlinds().bigBlind()) {
-                    return "Raise musi być co najmniej o big blinda (" + table.getBlinds().bigBlind() + ")";
                 }
                 if (seat.getStack() < toPutNow) {
                     return "Nie masz wystarczających żetonów na raise";
                 }
+
+                long raiseSize = newBetAmount - hand.getCurrentBet();
+
                 takeChips(hand, seat, toPutNow);
                 hand.setCurrentBet(newBetAmount);
+                hand.setLastRaiseSize(raiseSize);
                 ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": RAISE do " + newBetAmount);
             }
@@ -236,13 +274,7 @@ public class HoldemGameService {
             }
         }
 
-        if (isHandEndedByFolds(hand)) {
-            finishHandByFolds(table, hand);
-        } else if (isBettingRoundEnded(table, hand)) {
-            advanceStreet(table, hand);
-        } else {
-            moveToNextPlayer(table, hand);
-        }
+        checkGameProgress(table, hand);
 
         return null;
     }
@@ -259,8 +291,7 @@ public class HoldemGameService {
                 .filter(seat -> userId.equals(seat.getUserId()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
-                        "User " + userId + " is not seated at table " + table.getTableId()
-                ));
+                        "User " + userId + " is not seated at table " + table.getTableId()));
     }
 
     private int getNextDealerPosition(HoldemTable table, List<Seat> activeSeats) {
@@ -272,8 +303,8 @@ public class HoldemGameService {
     }
 
     private Seat getNextOccupiedSeat(HoldemTable table,
-                                     int startPosition,
-                                     List<Seat> activeSeats) {
+            int startPosition,
+            List<Seat> activeSeats) {
         int maxSeats = table.getMaxSeats();
         int pos = startPosition;
         while (true) {
@@ -290,21 +321,22 @@ public class HoldemGameService {
     }
 
     private void postBlindsAndDeal(HoldemTable table,
-                                   HoldemHand hand,
-                                   List<Seat> activeSeats) {
+            HoldemHand hand,
+            List<Seat> activeSeats) {
 
         long smallBlind = table.getBlinds().smallBlind();
-        long bigBlind   = table.getBlinds().bigBlind();
+        long bigBlind = table.getBlinds().bigBlind();
 
-        int dealerPos   = table.getDealerPosition();
+        int dealerPos = table.getDealerPosition();
 
         Seat smallBlindSeat = getNextOccupiedSeat(table, dealerPos, activeSeats);
-        Seat bigBlindSeat   = getNextOccupiedSeat(table, smallBlindSeat.getPosition(), activeSeats);
+        Seat bigBlindSeat = getNextOccupiedSeat(table, smallBlindSeat.getPosition(), activeSeats);
 
         takeChips(hand, smallBlindSeat, smallBlind);
         takeChips(hand, bigBlindSeat, bigBlind);
 
         hand.setCurrentBet(bigBlind);
+        hand.setLastRaiseSize(bigBlind); // Initial bet is considered a raise of BB size
         hand.setPot(smallBlind + bigBlind);
         hand.setStreet(BettingStreet.PREFLOP);
 
@@ -321,8 +353,8 @@ public class HoldemGameService {
     }
 
     private void takeChips(HoldemHand hand,
-                           Seat seat,
-                           long amount) {
+            Seat seat,
+            long amount) {
 
         PlayerHandState ps = hand.getPlayers()
                 .computeIfAbsent(seat.getPosition(), PlayerHandState::new);
@@ -372,6 +404,7 @@ public class HoldemGameService {
 
     private void advanceStreet(HoldemTable table, HoldemHand hand) {
         hand.setCurrentBet(0);
+        hand.setLastRaiseSize(table.getBlinds().bigBlind()); // Reset min raise to BB for new street
         hand.getPlayers().values().forEach(ps -> {
             ps.setChipsInPotThisStreet(0);
             ps.setActedThisStreet(false);
@@ -415,7 +448,17 @@ public class HoldemGameService {
                 .toList();
 
         if (activeSeats.isEmpty()) {
-            finishHandByFolds(table, hand);
+            // Check if we have players for a showdown (All-In situation)
+            long notFoldedCount = hand.getPlayers().values().stream()
+                    .filter(ps -> !ps.isFolded())
+                    .count();
+
+            if (notFoldedCount > 1) {
+                // Everyone is All-In (or 1 active + rest All-In and active just acted)
+                dealRemainingCardsAndShowdown(table, hand);
+            } else {
+                finishHandByFolds(table, hand);
+            }
             return;
         }
 
@@ -431,6 +474,32 @@ public class HoldemGameService {
                 return;
             }
         }
+    }
+
+    private void dealRemainingCardsAndShowdown(HoldemTable table, HoldemHand hand) {
+        // Deal remaining cards until River
+        while (hand.getStreet() != BettingStreet.RIVER) {
+            switch (hand.getStreet()) {
+                case PREFLOP -> {
+                    hand.getCommunityCards().add(hand.getShoe().getCard());
+                    hand.getCommunityCards().add(hand.getShoe().getCard());
+                    hand.getCommunityCards().add(hand.getShoe().getCard());
+                    hand.setStreet(BettingStreet.FLOP);
+                }
+                case FLOP -> {
+                    hand.getCommunityCards().add(hand.getShoe().getCard());
+                    hand.setStreet(BettingStreet.TURN);
+                }
+                case TURN -> {
+                    hand.getCommunityCards().add(hand.getShoe().getCard());
+                    hand.setStreet(BettingStreet.RIVER);
+                }
+            }
+        }
+
+        // Final state
+        hand.setStreet(BettingStreet.SHOWDOWN);
+        finishHandByShowdown(table, hand);
     }
 
     private void finishHandByFolds(HoldemTable table, HoldemHand hand) {
@@ -479,7 +548,8 @@ public class HoldemGameService {
                     .filter(s -> s.getPosition() == ps.getSeatPosition())
                     .findFirst()
                     .orElse(null);
-            if (seat == null || seat.getUserId() == null) continue;
+            if (seat == null || seat.getUserId() == null)
+                continue;
 
             List<String> hole = List.of(ps.getHole1(), ps.getHole2());
             int rank = handEvaluator.evaluateHand(hole, hand.getCommunityCards());
@@ -494,12 +564,14 @@ public class HoldemGameService {
                     .filter(ps -> pot.eligibleSeats.contains(ps.getSeatPosition()))
                     .toList();
 
-            if (eligible.isEmpty()) continue;
+            if (eligible.isEmpty())
+                continue;
 
             int bestRank = Integer.MAX_VALUE;
             for (PlayerHandState ps : eligible) {
                 Integer r = seatToRank.get(ps.getSeatPosition());
-                if (r != null && r < bestRank) bestRank = r;
+                if (r != null && r < bestRank)
+                    bestRank = r;
             }
 
             List<PlayerHandState> winners = new ArrayList<>();
@@ -531,7 +603,8 @@ public class HoldemGameService {
         StringBuilder sb = new StringBuilder("Showdown: ");
         boolean first = true;
         for (Map.Entry<Integer, Long> e : wins.entrySet()) {
-            if (!first) sb.append(" | ");
+            if (!first)
+                sb.append(" | ");
             sb.append("Seat ").append(e.getKey()).append(" +").append(e.getValue());
             first = false;
         }
@@ -552,14 +625,16 @@ public class HoldemGameService {
                     .min(Long::compareTo)
                     .orElse(0L);
 
-            if (min == 0) break;
+            if (min == 0)
+                break;
 
             List<Integer> contributors = new ArrayList<>();
             long potAmount = 0;
 
             for (Map.Entry<Integer, Long> e : remaining.entrySet()) {
                 long v = e.getValue();
-                if (v <= 0) continue;
+                if (v <= 0)
+                    continue;
                 long take = Math.min(v, min);
                 if (take > 0) {
                     potAmount += take;
@@ -608,8 +683,10 @@ public class HoldemGameService {
         }
 
         for (Seat seat : table.getSeats()) {
-            if (queue.isEmpty()) break;
-            if (seat.isOccupied()) continue;
+            if (queue.isEmpty())
+                break;
+            if (seat.isOccupied())
+                continue;
 
             WaitingPlayer wp = queue.removeFirst();
             seatPlayer(table, seat, wp.userId(), wp.buyIn());
@@ -630,7 +707,9 @@ public class HoldemGameService {
         }
     }
 
-    private record WaitingPlayer(Long userId, long buyIn) { }
+    private record WaitingPlayer(Long userId, long buyIn) {
+    }
 
-    private record SidePot(long amount, Set<Integer> eligibleSeats) { }
+    private record SidePot(long amount, Set<Integer> eligibleSeats) {
+    }
 }

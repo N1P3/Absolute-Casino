@@ -22,6 +22,7 @@ public class HoldemHand {
 
     private int currentPlayerSeat;
     private long currentBet;
+    private long lastRaiseSize;
     private long pot;
 
     private final Map<Integer, PlayerHandState> players = new HashMap<>();
