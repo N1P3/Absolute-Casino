@@ -1,51 +1,49 @@
-import React, { useRef, useMemo, useState, useEffect, useCallback } from "react";
-
-import { Stage, Container, Graphics, Sprite } from "@pixi/react";
-import { Texture, Graphics as PixiGraphics, Point, Container as PixiContainer, Assets, SCALE_MODES } from "pixi.js";
-
-import { CardKey } from "../shared";
-import Card, { CardRef } from "../Blackjack/Card";
-import PokerTableSvg from "@/assets/holdem/PokerTable.svg?raw";
-import { Button } from "@/components/ui/button";
-import { websocketRequest, RenderCustomPixiElement, waitFor, useContainerSize } from "@/lib/utils";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-
+import { websocketRequest } from "@/lib/utils";
 import { GAME_STAGES } from "./constants";
-
 import { HoldemGameState, HoldemResponse } from "./types";
+import { CardKey } from "../shared";
+
+// 3D Imports
+import Scene from "./Holdem3D/Scene";
+import Card from "./Holdem3D/Card";
+import PlayerSeat from "./Holdem3D/PlayerSeat";
+import Chips from "./Holdem3D/Chips";
+import { useCardTextures } from "./Holdem3D/useCardTextures";
 
 const ACTION_TIMEOUT_MS = 20_000;
 const NEXT_HAND_DELAY_MS = 3_000;
 
-const TABLE_WIDTH = 2760;
-const TABLE_HEIGHT = 1680;
-const TABLE_CENTER = { x: TABLE_WIDTH / 2, y: TABLE_HEIGHT / 2 };
-
-const SEAT_POSITIONS: {
-  [seat: number]: { nameX: number; nameY: number; cardsX: number; cardsY: number };
-} = {
-  0: { nameX: 1380, nameY: 1400, cardsX: 1380, cardsY: 1100 }, // Hero (Bottom Center) - Reverted to closer to original (doubled)
-  1: { nameX: 2160, nameY: 1160, cardsX: 2160, cardsY: 1020 }, // Right Bottom (doubled)
-  2: { nameX: 2160, nameY: 460, cardsX: 2160, cardsY: 320 }, // Right Top (doubled)
-  3: { nameX: 1380, nameY: 360, cardsX: 1380, cardsY: 220 }, // Top Center (doubled)
-  4: { nameX: 640, nameY: 460, cardsX: 640, cardsY: 320 }, // Left Top (doubled)
-  5: { nameX: 640, nameY: 1160, cardsX: 640, cardsY: 1020 }, // Left Bottom (doubled)
+// 3D Positions
+const SEAT_POSITIONS_3D: { [seat: number]: [number, number, number] } = {
+  0: [0, 0, 3.8], // Hero (Bottom Center)
+  1: [4.2, 0, 2.2], // Right Bottom
+  2: [4.2, 0, -2.2], // Right Top
+  3: [0, 0, -3.8], // Top Center
+  4: [-4.2, 0, -2.2], // Left Top
+  5: [-4.2, 0, 2.2], // Left Bottom
 };
+
+const COMMUNITY_CARDS_START_X = -1.3;
+const CARD_SPACING = 0.7;
 
 interface HoldemGameProps {
   tableId: number;
   onLeaveTable: () => void;
-  textures: Record<CardKey, Texture>;
+  // textures prop is no longer needed as we load them in R3F, but keeping signature for now or we can remove it
+  textures?: any;
 }
 
-const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures }) => {
+const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
   const { toast } = useToast();
 
   const [gameState, setGameState] = useState<HoldemGameState>({
     state: "idle",
     playerHand: [],
-    communityCards: ["Ah", "Ks", "Td", "2c", "7d"],
+    communityCards: [],
     pot: 0,
     currentBet: 0,
     gameStage: GAME_STAGES.PREFLOP,
@@ -60,7 +58,6 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
   });
 
   const [betAmount, setBetAmount] = useState<number>(10);
-
   const ws = useRef<WebSocket | undefined>(undefined);
   const actionLocked = useRef(false);
   const actionTimer = useRef<number | null>(null);
@@ -70,55 +67,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
   const [actionSecondsLeft, setActionSecondsLeft] = useState<number | null>(null);
   const [showResultOverlay, setShowResultOverlay] = useState(false);
 
-  const communityCardRefs = useRef<CardRef[]>([]);
-  const playerCardRefs = useRef<{ [playerId: string]: CardRef[] }>({});
-  const gameContainerRef = useRef<PixiContainer>();
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { width, height } = useContainerSize(containerRef);
-
-  const TableTexture = Texture.from(PokerTableSvg, {
-    scaleMode: SCALE_MODES.LINEAR,
-  });
-
-  const scale = useMemo(() => {
-    return Math.min(width / TABLE_WIDTH, height / TABLE_HEIGHT);
-  }, [width, height]);
-
-  // Funkcje do animacji kart
-  const dealCard = async (cardKey: CardKey, position: Point, flip: boolean) => {
-    if (!gameContainerRef.current || !textures) return null;
-
-    const ref = await RenderCustomPixiElement(gameContainerRef.current, Card, {
-      facing: "back",
-      cardKey: cardKey,
-      cardTextures: textures,
-      x: TABLE_CENTER.x * scale,
-      y: TABLE_CENTER.y - 200 * scale,
-      scale: 0.4 * scale,
-    });
-
-    await ref.current?.moveTo(position, 100);
-    if (flip) {
-      await ref?.current?.setFacing("front");
-    }
-    return ref;
-  };
-
-  const clearCards = async () => {
-    const allCards = [...communityCardRefs.current, ...Object.values(playerCardRefs.current).flat()];
-
-    for (const card of allCards) {
-      if (card?.spriteRef?.current) {
-        await card.moveTo(new Point(TABLE_CENTER.x * scale, -200 * scale), 100);
-        card.spriteRef.current?.destroy();
-      }
-    }
-
-    communityCardRefs.current = [];
-    playerCardRefs.current = {};
-  };
-
+  // WebSocket Logic (Same as before)
   const setPartialGameState = useCallback((partial: Partial<HoldemGameState>) => setGameState((prev) => ({ ...prev, ...partial })), []);
 
   const restartActionTimer = useCallback(
@@ -241,7 +190,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
         lastAction: resp.lastAction ?? null,
       };
 
-      setGameState(newState);
+      // setGameState(newState);
 
       if (!inHand) {
         if (actionTimer.current) {
@@ -268,7 +217,6 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
     };
 
     socket.onmessage = (event) => {
-      console.log("WS Holdem message:", event.data);
       try {
         const data = JSON.parse(event.data) as HoldemResponse | { type: "ERROR"; message: string };
 
@@ -369,86 +317,15 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
   const raise = () => doAction("raise", Math.max(1, betAmount));
   const allIn = () => doAction("all_in");
 
-  // Animacja kart podczas rozdania
-  useEffect(() => {
-    if (!textures || !gameState.players.length || !gameContainerRef.current) return;
-
-    const animateCards = async () => {
-      // Animuj karty community
-      if (gameState.communityCards.length > communityCardRefs.current.length) {
-        const newCards = gameState.communityCards.slice(communityCardRefs.current.length);
-        for (let i = 0; i < newCards.length; i++) {
-          const cardKey = newCards[i];
-          const index = communityCardRefs.current.length;
-          const position = new Point((TABLE_CENTER.x - 2 * 60 + index * 60) * scale, (TABLE_CENTER.y - 100) * scale);
-          const cardRef = await dealCard(cardKey as CardKey, position, true);
-          if (cardRef?.current) {
-            communityCardRefs.current.push(cardRef.current);
-          }
-          await waitFor(200);
-        }
-      }
-
-      // Animuj karty graczy
-      const me = gameState.players.find((p) => p.you);
-      if (me && gameState.playerHand.length > 0) {
-        const playerId = `player-${me.seatPosition}`;
-        if (!playerCardRefs.current[playerId] || playerCardRefs.current[playerId].length < gameState.playerHand.length) {
-          playerCardRefs.current[playerId] = playerCardRefs.current[playerId] || [];
-          const seatPos = SEAT_POSITIONS[me.seatPosition as keyof typeof SEAT_POSITIONS];
-          if (seatPos) {
-            const newCards = gameState.playerHand.slice(playerCardRefs.current[playerId].length);
-            for (let i = 0; i < newCards.length; i++) {
-              const cardKey = newCards[i];
-              const index = playerCardRefs.current[playerId].length;
-              const position = new Point((seatPos.cardsX + (index - 0.5) * 45) * scale, seatPos.cardsY * scale);
-              const cardRef = await dealCard(cardKey as CardKey, position, true);
-              if (cardRef?.current) {
-                playerCardRefs.current[playerId].push(cardRef.current);
-              }
-              await waitFor(200);
-            }
-          }
-        }
-      }
-
-      // Animuj karty przeciwników (zakryte)
-      for (const player of gameState.players.filter((p) => !p.you)) {
-        const playerId = `player-${player.seatPosition}`;
-        const expectedCards = gameState.state === "playing" ? 2 : 0;
-
-        if (expectedCards > 0 && (!playerCardRefs.current[playerId] || playerCardRefs.current[playerId].length < expectedCards)) {
-          playerCardRefs.current[playerId] = playerCardRefs.current[playerId] || [];
-          const seatPos = SEAT_POSITIONS[player.seatPosition as keyof typeof SEAT_POSITIONS];
-          if (seatPos) {
-            for (let i = playerCardRefs.current[playerId].length; i < expectedCards; i++) {
-              const position = new Point((seatPos.cardsX + (i - 0.5) * 45) * scale, seatPos.cardsY * scale);
-              const cardRef = await dealCard("BB" as CardKey, position, false);
-              if (cardRef?.current) {
-                playerCardRefs.current[playerId].push(cardRef.current);
-              }
-              await waitFor(150);
-            }
-          }
-        }
-      }
-    };
-
-    animateCards();
-  }, [gameState.communityCards, gameState.playerHand, gameState.players, gameState.state, textures]);
-
-  // Czyszczenie kart po zakończeniu gry i pokazanie wyniku
   useEffect(() => {
     if (gameState.gameOver && gameState.result) {
       setShowResultOverlay(true);
       setTimeout(() => {
         setShowResultOverlay(false);
-        clearCards();
       }, NEXT_HAND_DELAY_MS);
     }
   }, [gameState.gameOver, gameState.result]);
 
-  // Connect to WebSocket and join table on mount
   useEffect(() => {
     const socket = connectWs();
 
@@ -466,7 +343,6 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
       });
     };
 
-    // Wait for connection to open
     if (socket.readyState === WebSocket.OPEN) {
       joinTable();
     } else {
@@ -488,7 +364,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
 
   return (
     <div className="flex flex-col h-screen bg-background relative overflow-hidden">
-      {/* Górny pasek */}
+      {/* Top Bar */}
       <div className="absolute top-0 left-0 w-full z-50 p-6 flex justify-between items-start pointer-events-none">
         <div className="pointer-events-auto bg-black/40 backdrop-blur-md border border-white/10 rounded-full px-6 py-3 flex gap-6 items-center shadow-xl">
           <div className="flex flex-col">
@@ -516,116 +392,30 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
         </Button>
       </div>
 
-      {/* Main Game Container - Centered with Aspect Ratio */}
-      <div className="flex-1 flex items-center justify-center pb-[150px] overflow-hidden">
-        <div
-          ref={containerRef}
-          style={{
-            aspectRatio: `${TableTexture.width} / ${TableTexture.height}`,
-            height: "100%",
-            overflow: "hidden",
-            position: "relative",
-          }}
-        >
-          {/* PixiJS Stage */}
-          <Stage
-            width={width}
-            height={height}
-            options={{
-              backgroundColor: { h: 224, s: 71.4, l: 4.1 },
-              resolution: window.devicePixelRatio || 1,
-              antialias: true,
-              autoDensity: true,
-            }}
-            className="absolute inset-0"
-          >
-            <Container
-              ref={(ref) => {
-                if (ref) gameContainerRef.current = ref;
-              }}
-            >
-              <Sprite roundPixels texture={TableTexture} scale={scale} />
+      {/* 3D Scene */}
+      <div className="flex-1 relative p-12">
+        <Scene>
+          <Game3DContent gameState={gameState} />
+        </Scene>
 
-              {/* Karty renderowane przez animacje */}
-            </Container>
-          </Stage>
-
-          {/* HTML Overlay Wrapper - Full screen, no scale, projected coordinates */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            {/* Overlay wyniku gry */}
-            {showResultOverlay && gameState.result && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-50 animate-in fade-in duration-300 pointer-events-auto">
-                <div className="bg-card border border-primary/20 p-12 rounded-3xl shadow-[0_0_50px_rgba(234,179,8,0.2)] transform animate-in zoom-in duration-500 text-center max-w-2xl">
-                  <h2 className="text-5xl font-extrabold text-white mb-6 drop-shadow-lg tracking-tight">
-                    {gameState.result.includes("WIN") || gameState.result.includes("wyg") ? (
-                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600">WYGRANA!</span>
-                    ) : (
-                      "Koniec rozdania"
-                    )}
-                  </h2>
-                  <p className="text-2xl text-muted-foreground font-medium">{gameState.result}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Info o graczach */}
-            {gameState.players.map((p) => {
-              const seatPos = SEAT_POSITIONS[p.seatPosition as keyof typeof SEAT_POSITIONS];
-              if (!seatPos) return null;
-
-              const isHero = p.you;
-              const isTurn = p.currentTurn;
-              const hasButton = gameState.dealerSeat !== null && p.seatPosition === gameState.dealerSeat;
-
-              return (
-                <div
-                  key={p.seatPosition}
-                  className={`absolute w-40 transition-all duration-300 pointer-events-auto ${isTurn ? "scale-110 z-20" : "scale-100 z-10"}`}
-                  style={{
-                    left: seatPos.nameX * scale,
-                    top: seatPos.nameY * scale,
-                    transform: "translate(-50%, -50%)",
-                  }}
-                >
-                  <div
-                    className={`relative overflow-hidden rounded-xl border backdrop-blur-md shadow-xl transition-all duration-300 ${
-                      isHero ? "bg-primary/10 border-primary/50 shadow-[0_0_20px_rgba(234,179,8,0.15)]" : "bg-black/60 border-white/10"
-                    } ${isTurn ? "ring-2 ring-primary ring-offset-2 ring-offset-black" : ""}`}
-                  >
-                    {p.folded && (
-                      <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center">
-                        <span className="text-white/50 font-bold uppercase tracking-widest text-xs">Pas</span>
-                      </div>
-                    )}
-
-                    <div className="p-3 flex flex-col items-center gap-1">
-                      <div className="flex items-center gap-2 w-full justify-center relative">
-                        {hasButton && <div className="absolute left-0 w-5 h-5 rounded-full bg-yellow-500 text-black text-[10px] font-bold flex items-center justify-center shadow-lg">D</div>}
-                        <span className={`font-bold truncate max-w-[100px] ${isHero ? "text-primary" : "text-white"}`}>{isHero ? "TY" : `Gracz ${p.userId}`}</span>
-                      </div>
-
-                      <div className="w-full h-px bg-white/10 my-1"></div>
-
-                      <div className="flex flex-col items-center">
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider">Stack</span>
-                        <span className="font-mono font-bold text-white">{p.stack}</span>
-                      </div>
-
-                      {p.betThisStreet > 0 && (
-                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 border border-primary/30 text-primary px-3 py-1 rounded-full text-xs font-bold shadow-lg whitespace-nowrap">
-                          {p.betThisStreet}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+        {/* Result Overlay */}
+        {showResultOverlay && gameState.result && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-50 animate-in fade-in duration-300 pointer-events-auto">
+            <div className="bg-card border border-primary/20 p-12 rounded-3xl shadow-[0_0_50px_rgba(234,179,8,0.2)] transform animate-in zoom-in duration-500 text-center max-w-2xl">
+              <h2 className="text-5xl font-extrabold text-white mb-6 drop-shadow-lg tracking-tight">
+                {gameState.result.includes("WIN") || gameState.result.includes("wyg") ? (
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600">WYGRANA!</span>
+                ) : (
+                  "Koniec rozdania"
+                )}
+              </h2>
+              <p className="text-2xl text-muted-foreground font-medium">{gameState.result}</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Przyciski akcji - Moved outside game container to be at bottom of screen */}
+      {/* Action Buttons */}
       <div className="absolute bottom-0 left-0 w-full p-4 z-50 pointer-events-none">
         <div className="flex flex-col gap-2 items-center w-full max-w-3xl mx-auto pointer-events-auto">
           {gameState.isMyTurn && gameState.state === "playing" && (
@@ -637,7 +427,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
                 </div>
               )}
 
-              {/* Główne przyciski akcji */}
+              {/* Main Actions */}
               <div className="bg-black/10 backdrop-blur-xl px-6 py-4 rounded-2xl shadow-2xl border border-white/5 w-full">
                 <div className="flex flex-wrap justify-center gap-2 mb-4">
                   <Button
@@ -677,7 +467,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
                   </Button>
                 </div>
 
-                {/* Slider do betowania */}
+                {/* Bet Slider */}
                 {(canAction("bet") || canAction("raise")) && (
                   <div className="flex flex-col gap-3 max-w-xl mx-auto bg-white/5 p-3 rounded-xl border border-white/5">
                     <div className="flex items-center gap-4">
@@ -700,7 +490,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
             </>
           )}
 
-          {/* Info o ostatniej akcji */}
+          {/* Last Action Info */}
           {gameState.lastAction && !gameState.isMyTurn && (
             <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-xl animate-in slide-in-from-bottom-4">
               <span className="text-white font-medium text-sm">
@@ -711,6 +501,60 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable, textures
         </div>
       </div>
     </div>
+  );
+};
+
+const Game3DContent: React.FC<{
+  gameState: HoldemGameState;
+}> = ({ gameState }) => {
+  const textures = useCardTextures();
+
+  return (
+    <>
+      {/* Community Cards */}
+      {gameState.communityCards.map((card, i) => (
+        <Card key={`community-${i}`} cardKey={card as CardKey} textures={textures} position={[COMMUNITY_CARDS_START_X + i * CARD_SPACING, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={0.25} />
+      ))}
+
+      {/* Players */}
+      {gameState.players.map((player) => {
+        const pos = SEAT_POSITIONS_3D[player.seatPosition] || [0, 0, 0];
+        const isHero = player.you;
+
+        return (
+          <group key={player.seatPosition}>
+            <PlayerSeat player={player} position={pos} isActive={player.currentTurn} isHero={isHero} dealer={gameState.dealerSeat === player.seatPosition} />
+
+            {/* Chips */}
+            {player.betThisStreet > 0 && <Chips amount={player.betThisStreet} position={[pos[0] * 0.5, 0.06, pos[2] * 0.5]} />}
+
+            {/* Hero Cards */}
+            {isHero &&
+              gameState.playerHand.map((card, i) => (
+                <Card key={`hero-${i}`} cardKey={card as CardKey} textures={textures} position={[pos[0] + (i - 0.5) * 0.8, 0.06, pos[2] - 1.5]} rotation={[-Math.PI / 2, 0, 0]} scale={0.3} />
+              ))}
+
+            {/* Opponent Cards (Face Down) */}
+            {!isHero && !player.folded && gameState.state === "playing" && (
+              <>
+                <Card
+                  cardKey="BB"
+                  textures={textures}
+                  position={[pos[0] - 0.2, 0, pos[2] * 0.8]}
+                  rotation={[-Math.PI / 2, 0, Math.atan2(-pos[0], -pos[2])]} // Rotate towards center
+                  scale={0.2}
+                  flipped={true}
+                />
+                <Card cardKey="BB" textures={textures} position={[pos[0] + 0.2, 0, pos[2] * 0.8]} rotation={[-Math.PI / 2, 0, Math.atan2(-pos[0], -pos[2])]} scale={0.2} flipped={true} />
+              </>
+            )}
+          </group>
+        );
+      })}
+
+      {/* Pot Chips */}
+      {gameState.pot > 0 && <Chips amount={gameState.pot} position={[0, 0, -1]} />}
+    </>
   );
 };
 
