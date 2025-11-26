@@ -13,18 +13,34 @@ import Card from "./Holdem3D/Card";
 import PlayerSeat from "./Holdem3D/PlayerSeat";
 import Chips from "./Holdem3D/Chips";
 import { useCardTextures } from "./Holdem3D/useCardTextures";
+import { calculateCardsPosition } from "./Holdem3D/cardUtils";
 
 const ACTION_TIMEOUT_MS = 20_000;
 const NEXT_HAND_DELAY_MS = 3_000;
 
 // 3D Positions
 const SEAT_POSITIONS_3D: { [seat: number]: [number, number, number] } = {
-  0: [0, 0, 3.8], // Hero (Bottom Center)
+  0: [0, 0, 3], // Hero (Bottom Center)
   1: [4.2, 0, 2.2], // Right Bottom
   2: [4.2, 0, -2.2], // Right Top
-  3: [0, 0, -3.8], // Top Center
+  3: [0, 0, -3], // Top Center
   4: [-4.2, 0, -2.2], // Left Top
   5: [-4.2, 0, 2.2], // Left Bottom
+};
+const getRelativeCenterForPosition = (position: number): [number, number, number] => {
+  switch (position) {
+    case 0:
+    case 3:
+      return [0, 0, 0];
+    case 1:
+    case 2:
+      return [2.1, 0, 0];
+    case 4:
+    case 5:
+      return [-2.1, 0, 0];
+    default:
+      return [0, 0, 0];
+  }
 };
 
 const COMMUNITY_CARDS_START_X = -1.3;
@@ -190,7 +206,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
         lastAction: resp.lastAction ?? null,
       };
 
-      // setGameState(newState);
+      setGameState(newState);
 
       if (!inHand) {
         if (actionTimer.current) {
@@ -395,7 +411,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
       {/* 3D Scene */}
       <div className="flex-1 relative p-12">
         <Scene>
-          <Game3DContent gameState={gameState} />
+          <Game3DContent state={gameState} />
         </Scene>
 
         {/* Result Overlay */}
@@ -505,55 +521,63 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
 };
 
 const Game3DContent: React.FC<{
-  gameState: HoldemGameState;
-}> = ({ gameState }) => {
+  state: HoldemGameState;
+}> = ({ state }) => {
   const textures = useCardTextures();
+  //   const tableCenter: [number, number, number] = [0, 0, 0];
 
   return (
     <>
       {/* Community Cards */}
-      {gameState.communityCards.map((card, i) => (
+      {state.communityCards.map((card, i) => (
         <Card key={`community-${i}`} cardKey={card as CardKey} textures={textures} position={[COMMUNITY_CARDS_START_X + i * CARD_SPACING, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={0.25} />
       ))}
 
       {/* Players */}
-      {gameState.players.map((player) => {
+      {state.players.map((player) => {
         const pos = SEAT_POSITIONS_3D[player.seatPosition] || [0, 0, 0];
+        const relativeCenter = getRelativeCenterForPosition(player.seatPosition);
         const isHero = player.you;
+        const cardsPos = calculateCardsPosition(pos, relativeCenter, !isHero && !player.folded);
 
         return (
           <group key={player.seatPosition}>
-            <PlayerSeat player={player} position={pos} isActive={player.currentTurn} isHero={isHero} dealer={gameState.dealerSeat === player.seatPosition} />
+            <PlayerSeat
+              player={player}
+              position={pos}
+              isActive={state.currentPlayerSeat === player.seatPosition}
+              isHero={isHero}
+              dealer={state.dealerSeat === player.seatPosition}
+              center={relativeCenter}
+            />
 
             {/* Chips */}
             {player.betThisStreet > 0 && <Chips amount={player.betThisStreet} position={[pos[0] * 0.5, 0.06, pos[2] * 0.5]} />}
 
-            {/* Hero Cards */}
-            {isHero &&
-              gameState.playerHand.map((card, i) => (
-                <Card key={`hero-${i}`} cardKey={card as CardKey} textures={textures} position={[pos[0] + (i - 0.5) * 0.8, 0.06, pos[2] - 1.5]} rotation={[-Math.PI / 2, 0, 0]} scale={0.3} />
-              ))}
-
-            {/* Opponent Cards (Face Down) */}
-            {!isHero && !player.folded && gameState.state === "playing" && (
+            {/* Cards */}
+            {/* Hero Cards or if we want to force show cards for testing */}
+            {isHero && state.playerHand ? (
               <>
-                <Card
-                  cardKey="BB"
-                  textures={textures}
-                  position={[pos[0] - 0.2, 0, pos[2] * 0.8]}
-                  rotation={[-Math.PI / 2, 0, Math.atan2(-pos[0], -pos[2])]} // Rotate towards center
-                  scale={0.2}
-                  flipped={true}
-                />
-                <Card cardKey="BB" textures={textures} position={[pos[0] + 0.2, 0, pos[2] * 0.8]} rotation={[-Math.PI / 2, 0, Math.atan2(-pos[0], -pos[2])]} scale={0.2} flipped={true} />
+                <Card cardKey={state.playerHand[0] as CardKey} textures={textures} position={cardsPos[0].positon} rotation={cardsPos[0].rotation} scale={0.2} />
+                <Card cardKey={state.playerHand[1] as CardKey} textures={textures} position={cardsPos[1].positon} rotation={cardsPos[1].rotation} scale={0.2} />
               </>
+            ) : (
+              // Face down cards for others if no hole cards set
+              !isHero &&
+              !player.folded &&
+              state.state === "playing" && (
+                <>
+                  <Card cardKey="BB" textures={textures} position={cardsPos[0].positon} rotation={cardsPos[0].rotation} scale={0.2} flipped={true} />
+                  <Card cardKey="BB" textures={textures} position={cardsPos[1].positon} rotation={cardsPos[1].rotation} scale={0.2} flipped={true} />
+                </>
+              )
             )}
           </group>
         );
       })}
 
       {/* Pot Chips */}
-      {gameState.pot > 0 && <Chips amount={gameState.pot} position={[0, 0, -1]} />}
+      {state.pot > 0 && <Chips amount={state.pot} position={[0, 0, -1]} />}
     </>
   );
 };
