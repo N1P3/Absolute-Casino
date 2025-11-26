@@ -9,7 +9,7 @@ import Card from "./Holdem3D/Card";
 import PlayerSeat from "./Holdem3D/PlayerSeat";
 import Chips from "./Holdem3D/Chips";
 import { useCardTextures } from "./Holdem3D/useCardTextures";
-import { HoldemGameState, HoldemPlayer } from "./types";
+import { HoldemPlayer } from "./types";
 import { calculateCardsPosition } from "./Holdem3D/cardUtils";
 
 // Reusing constants from HoldemGame

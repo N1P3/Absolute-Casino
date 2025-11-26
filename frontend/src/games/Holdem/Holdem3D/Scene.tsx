@@ -29,15 +29,20 @@ const Scene: React.FC<SceneProps> = ({ children }) => {
     <Canvas
       shadows
       dpr={[1, 2]}
-      gl={async (props) => {
-        const renderer = new WebGPURenderer(props as any);
-        await renderer.init();
-        renderer.toneMapping = NeutralToneMapping;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = PCFSoftShadowMap;
-
-        return renderer;
+      onCreated={(state) => {
+        state.gl.toneMapping = NeutralToneMapping;
+        state.gl.shadowMap.enabled = true;
+        state.gl.shadowMap.type = PCFSoftShadowMap;
       }}
+      // gl={async (props) => {
+      //   const renderer = new WebGPURenderer(props as any);
+      //   await renderer.init();
+      //   renderer.toneMapping = NeutralToneMapping;
+      //   renderer.shadowMap.enabled = true;
+      //   // renderer.shadowMap.type = PCFSoftShadowMap;
+
+      //   return renderer;
+      // }}
     >
       {/* Camera: Top-down with slight angle for optimal table view */}
       <PerspectiveCamera makeDefault position={[0, 8, 7]} fov={40} onUpdate={(c) => c.lookAt(0, 0, 0)} />
@@ -140,7 +145,7 @@ const Scene: React.FC<SceneProps> = ({ children }) => {
       </Suspense> */}
 
       {/* Soft contact shadows */}
-      <ContactShadows position={[0, -0.05, 0]} opacity={0.3} scale={15} blur={2.5} far={5} resolution={512} color="#000000" />
+      {/* <ContactShadows position={[0, -0.05, 0]} opacity={0.3} scale={15} blur={2.5} far={5} resolution={512} color="#000000" /> */}
 
       {/* Ground plane */}
       {/* <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
