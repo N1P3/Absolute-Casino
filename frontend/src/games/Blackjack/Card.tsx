@@ -1,29 +1,35 @@
-import { Sprite } from "@pixi/react-animated";
-import React, { useEffect, useImperativeHandle } from "react";
+import { animated } from "react-spring";
+import React, { useEffect, useImperativeHandle, useMemo } from "react";
 import { CardKey } from "../shared";
-import { ObservablePoint, Point, Texture, Transform, Sprite as PixiSprite } from "pixi.js";
+import { ObservablePoint, Point, Texture, Sprite } from "pixi.js";
 import { to, useSpring } from "react-spring";
+import { extend } from "@pixi/react";
+
+const AnimatedSprite = animated("pixiSprite");
+
+extend({ Sprite });
 
 type props = {
   cardKey: CardKey;
   facing: "front" | "back";
   cardTextures: Record<CardKey, Texture>;
   scale?: number;
-} & React.ComponentProps<typeof Sprite>;
+} & React.ComponentProps<typeof AnimatedSprite>;
 
 export type CardRef = {
   setFacing: (facing: "front" | "back") => Promise<void>;
   moveTo: (position: Point | ObservablePoint, duration?: number) => Promise<void>;
-  spriteRef: React.RefObject<PixiSprite>;
+  spriteRef: React.RefObject<Sprite | null>;
   cardKey: CardKey;
 };
 
 const Card = React.forwardRef<CardRef, props>(({ cardKey, facing, cardTextures, ...props }, ref) => {
   const [currentFacing, setCurrentFacing] = React.useState(facing);
-  const PixiSpriteRef = React.useRef<PixiSprite>(null);
+  const PixiSpriteRef = React.useRef<Sprite>(null);
 
   const [spring, api] = useSpring(() => ({
-    scaleX: 1,
+    scaleX: props.scale || 1,
+    scaleY: props.scale || 1,
     x: props.x || 0,
     y: props.y || 0,
   }));
@@ -34,7 +40,7 @@ const Card = React.forwardRef<CardRef, props>(({ cardKey, facing, cardTextures, 
       onResolve: async () => {
         setCurrentFacing(newFacing);
         await api.start({
-          scaleX: 1,
+          scaleX: props.scale || 1,
         });
       },
       config: { duration: 100 },
@@ -68,18 +74,17 @@ const Card = React.forwardRef<CardRef, props>(({ cardKey, facing, cardTextures, 
     cardKey,
   }));
 
-  const scale = new Point(props.scale);
+  const texture = currentFacing === "front" ? cardTextures[cardKey] : cardTextures["BB"];
 
-  return (
-    <Sprite
-      texture={currentFacing === "front" ? cardTextures[cardKey] : cardTextures["BB"]}
-      pivot={[cardTextures[cardKey].width / 2, cardTextures[cardKey].height / 2]}
-      ref={PixiSpriteRef}
-      scale={spring.scaleX.to((scaleX) => [scaleX * (props.scale || 1), props.scale || 1])}
-      x={spring.x}
-      y={spring.y}
-    />
+  const pivot = useMemo(
+    () => ({
+      x: texture.width / 2,
+      y: texture.height / 2,
+    }),
+    [texture]
   );
+
+  return <AnimatedSprite ref={PixiSpriteRef} texture={texture} pivot={pivot} x={spring.x} y={spring.y} scale={to([spring.scaleX, spring.scaleY], (x, y) => ({ x, y }))} />;
 });
 
 export default Card;

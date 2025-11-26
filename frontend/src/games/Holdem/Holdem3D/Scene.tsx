@@ -1,21 +1,17 @@
 import React, { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { PerspectiveCamera, ContactShadows, Environment, useGLTF, OrbitControls } from "@react-three/drei";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { useLoader } from "@react-three/fiber";
 import { ACESFilmicToneMapping, AgXToneMapping, LinearSRGBColorSpace, NeutralToneMapping, Object3D, PCFSoftShadowMap } from "three";
 import { EffectComposer, Bloom, DepthOfField, SSAO, ChromaticAberration } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
+import { WebGPURenderer } from "three/webgpu";
 
 interface SceneProps {
   children?: React.ReactNode;
 }
 
-const loader = new GLTFLoader();
-
 const Scene: React.FC<SceneProps> = ({ children }) => {
-  // const table = useLoader(GLTFLoader, '/table.glb')
-  const table = useGLTF("/table3.glb");
+  const table = useGLTF("/table.glb");
   const target = React.useRef<Object3D>(null);
 
   table.scene.scale.set(2.5, 2.5, 2.5);
@@ -29,19 +25,18 @@ const Scene: React.FC<SceneProps> = ({ children }) => {
     });
   }, [table.scene]);
 
-  // console.log(table)
   return (
     <Canvas
       shadows
       dpr={[1, 2]}
-      gl={{ alpha: true, antialias: true }}
-      onCreated={({ gl }) => {
-        // output encoding and tone mapping for correct colors / filmic response
-        // gl.outputEncoding = sRGBEncoding;
-        gl.toneMapping = NeutralToneMapping;
-        gl.toneMappingExposure = 1.0;
-        gl.shadowMap.enabled = true;
-        gl.shadowMap.type = PCFSoftShadowMap;
+      gl={async (props) => {
+        const renderer = new WebGPURenderer(props as any);
+        await renderer.init();
+        renderer.toneMapping = NeutralToneMapping;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = PCFSoftShadowMap;
+
+        return renderer;
       }}
     >
       {/* Camera: Top-down with slight angle for optimal table view */}
@@ -164,7 +159,10 @@ const Scene: React.FC<SceneProps> = ({ children }) => {
         {children}
 
         {/* Postprocessing: SSAO, Depth of Field, Bloom */}
-        {/* <EffectComposer multisampling={4} enableNormalPass> */}
+        {/* <EffectComposer>
+          <DepthOfField focusDistance={0} focalLength={0.02} bokehScale={2} height={480} />
+        </EffectComposer> */}
+        {/* <EffectComposer multisampling={4} enableNormalPass > */}
         {/* <SSAO
             blendFunction={BlendFunction.MULTIPLY} // blend mode
             samples={30} // amount of samples per pixel (shouldn't be a multiple of the ring count)
@@ -182,7 +180,7 @@ const Scene: React.FC<SceneProps> = ({ children }) => {
           <Bloom intensity={0.1} luminanceThreshold={0.9} luminanceSmoothing={0.1} mipmapBlur /> */}
         {/* </EffectComposer> */}
       </Suspense>
-      {/* <OrbitControls makeDefault /> */}
+      <OrbitControls makeDefault />
     </Canvas>
   );
 };

@@ -1,18 +1,20 @@
 import React, { useRef, useMemo, useEffect, useState } from "react";
-import { Stage, Sprite, Container, createRoot, ReactPixiRoot, Text, Graphics } from "@pixi/react";
-import { Application, Texture, Container as PixiContainer, Sprite as PixiSprite, Point, TextStyle, Transform } from "pixi.js";
+import { ApplicationRef, Application as PixiApplication, createRoot, extend } from "@pixi/react";
+import { Texture, Container, Sprite, Point, Text } from "pixi.js";
 import { useQuery } from "@tanstack/react-query";
 import { Assets } from "pixi.js";
 import bg from "@/assets/blackjack/background.webp?url";
 import { CardKey, CardValue, loadCardTextures } from "../shared";
 import Card, { CardRef } from "./Card";
 import { Button } from "@/components/ui/button";
-import { RenderCustomPixiElement, useContainerSize, waitFor, websocketRequest } from "@/lib/utils";
+import { ImperativeSpawner, SpawnerHandle, useContainerSize, waitFor, websocketRequest } from "@/lib/utils";
 import { BlackjackResponse, ErrorResponse, GameState, HandPositions, Result } from "./types";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
 import { calculatePossibleSums, formatHandValue, getHandPosition, POSITIONS } from "./helpers";
 import { HandCountDisplay, HandValueDisplay } from "./Components";
+
+extend({ Sprite, Container, Text });
 
 const stakes = [5, 10, 25, 50, 100, 500, 1000];
 const INITIAL_OFFSET = -50;
@@ -50,17 +52,18 @@ const Blackjack = () => {
 };
 
 const Inner = ({ textures }: any) => {
-  const app = useRef<Application>();
+  const app = useRef<ApplicationRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const gameContainer = useRef<PixiContainer>();
+  const gameContainer = useRef<Container>(null);
 
   const cards = useRef<{
     dealerCards: CardRef[];
     playerCards: CardRef[];
     playerSplitCards: CardRef[];
   }>({ dealerCards: [], playerCards: [], playerSplitCards: [] });
-  const root = useRef<ReactPixiRoot>();
-  const ws = useRef<WebSocket>();
+
+  const spawnerRef = useRef<SpawnerHandle>(null);
+  const ws = useRef<WebSocket>(null);
 
   const [gameState, _setGameState] = useState<GameState>(defaultGameState);
   const { balance } = useAuth();
@@ -88,6 +91,7 @@ const Inner = ({ textures }: any) => {
 
   const handleError = (error: unknown, state: Partial<GameState>) => {
     const data = error as ErrorResponse;
+    console.error("Błąd:", data);
     toast({
       type: "foreground",
       title: "Błąd",
@@ -100,7 +104,11 @@ const Inner = ({ textures }: any) => {
   // console.log(balance);
 
   const dealCard = async (cardKey: CardKey, position: HandPositions, flip: boolean) => {
-    const ref = await RenderCustomPixiElement(gameContainer.current!, Card, {
+    if (!spawnerRef.current) {
+      throw new Error("Spawner not ready");
+    }
+
+    const ref = await spawnerRef.current.spawn(Card, {
       facing: "back",
       cardKey: cardKey,
       cardTextures: textures.cards,
@@ -389,35 +397,32 @@ const Inner = ({ textures }: any) => {
           style={{ aspectRatio: ` ${textures.background.width} / ${textures.background.height}`, height: "100%", overflow: "hidden", position: "relative" }}
           ref={containerRef}
         >
-          <Stage
-            options={{ background: "rgb(31 44 69)" }}
-            onMount={(a) => {
-              app.current = a;
-              // a.resizeTo = containerRef.current!;
+          <PixiApplication
+            background="rgb(31 44 69)"
+            ref={(a) => {
+              if (a) app.current = a;
             }}
-            width={width}
-            height={height}
+            // width={width}
+            // height={height}
+            resizeTo={containerRef.current!}
           >
-            {/* <Game container={containerRef} textures={textures} configuration={{ numSymbols: 3, numReels: 5, padding: 2, reelsBoundingBox: [420, 552, 2576, 1684] }} /> */}
-            <Container
+            <pixiContainer
               ref={(ref) => {
                 if (!ref) return;
                 // console.log(ref);
                 gameContainer.current = ref;
-                if (!root.current) {
-                  root.current = createRoot(ref);
-                }
               }}
               key="gameContainer"
               sortableChildren={true}
             >
               <>
-                <Sprite name="background" texture={textures.background} scale={scale} />
-                <Container x={POSITIONS.deck.x * scale} y={POSITIONS.deck.y * scale} name="deck">
+                <pixiSprite texture={textures.background} scale={scale} />
+                <ImperativeSpawner ref={spawnerRef} />
+                <pixiContainer x={POSITIONS.deck.x * scale} y={POSITIONS.deck.y * scale}>
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Card key={i} cardKey="AS" facing={"back"} cardTextures={textures.cards} x={i * 2} y={-i * 2} scale={scale * 1.2} />
                   ))}
-                </Container>
+                </pixiContainer>
                 {gameState.playerCount && <HandCountDisplay current={false} value={gameState.playerCount} position={gameState.isSplit ? POSITIONS.handSplit1 : POSITIONS.hand} scale={scale} />}
                 {gameState.dealerCount && <HandCountDisplay current={false} value={gameState.dealerCount} position={POSITIONS.dealer} scale={scale} />}
                 {gameState.playerSplitCount && (
@@ -441,21 +446,14 @@ const Inner = ({ textures }: any) => {
                         stroke: "black",
                         strokeThickness: 10,
                         fontSize: 200,
-                        fontFamily: "Lato",
+                        fontFamily: "Outfit",
                       })
                     }
                   />
                 )} */}
               </>
-            </Container>
-          </Stage>
-          {balance !== null && (
-            <div style={{ position: "absolute", top: "1rem", left: "1rem" }}>
-              <p className="text-3xl">
-                Saldo: <b>{balance} PLN</b>
-              </p>
-            </div>
-          )}
+            </pixiContainer>
+          </PixiApplication>
           <div style={{ position: "absolute", bottom: "1rem", width: "100%" }}>
             {(gameState.state === "idle" || gameState.state === "end") && (
               <div className="flex flex-row justify-center gap-4 m-2">

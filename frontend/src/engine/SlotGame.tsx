@@ -1,10 +1,14 @@
-import { Container, Graphics, Sprite, Text, useApp } from "@pixi/react";
-import { BlurFilter, Graphics as PixiGraphics, Sprite as PixiSprite, TextStyle, Texture, Container as PixiContainer, Point } from "pixi.js";
-import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { easings, useSpring, useSprings } from "react-spring";
-import { Sprite as AnimatedSprite, Graphics as AnimatedGraphics } from "@pixi/react-animated";
+import { extend, useApplication } from "@pixi/react";
+import { Sprite, Texture, Container, Point, Graphics } from "pixi.js";
+import React, { useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { easings, useSpring, useSprings, animated } from "react-spring";
 import { Line } from "./types";
-import { MotionBlurFilter } from "@pixi/filter-motion-blur";
+import { MotionBlurFilter } from "pixi-filters";
+// import { MotionBlurFilter } from "@pixi/filter-motion-blur";
+const AnimatedSprite = animated("pixiSprite");
+const AnimatedGraphics = animated("pixiGraphics");
+
+extend({ Sprite, Container, Graphics });
 
 type GameProps = {
   textures: {
@@ -25,7 +29,7 @@ type GameProps = {
 
 type Reel = {
   //   container: PixiContainer<DisplayObject>;
-  symbols: PixiSprite[];
+  symbols: Sprite[];
   position: number;
   previousPosition: number;
   blur: MotionBlurFilter;
@@ -41,8 +45,8 @@ const REEL_SEQUENCE_TIME = 500;
 const MIN_TIME = 2000;
 
 const Game = React.forwardRef<EngineRef, GameProps>(({ textures, configuration, winningLines, scale, frozenSymbols, highlightedSymbols }, ref) => {
-  const app = useApp();
-  const mainConatiner = useRef<PixiContainer>(null);
+  const { app } = useApplication();
+  const mainConatiner = useRef<Container>(null);
   // const spinning = useRef(false);
   const [spinning, setSpinning] = useState(false);
   // const [highlightedSymbols, setHighlightedSymbols] = useState<[number, number][]>([]);
@@ -84,15 +88,10 @@ const Game = React.forwardRef<EngineRef, GameProps>(({ textures, configuration, 
   // const maskRef = useRef<PixiGraphics>(null);
   const reels = useRef<Reel[]>(
     Array.from({ length: configuration.numReels }).map(() => {
-      const blur = new MotionBlurFilter([0, 0]);
-      blur.kernelSize = 99;
-      // blur.padding = 100;
-      // blur.blurX = 0;
-      // blur.blurY = 0;
-      // // blur.repeatEdgePixels = true;
-      // blur.quality = 10;
-      // blur.resolution = 0.5;
-      // blur.quality = 0.5;
+      const blur = new MotionBlurFilter({
+        velocity: new Point(0, 0),
+        kernelSize: 99,
+      });
       return { symbols: [], position: 0, previousPosition: 0, blur };
     })
   );
@@ -129,7 +128,7 @@ const Game = React.forwardRef<EngineRef, GameProps>(({ textures, configuration, 
         if (isFrozen) {
           continue;
         }
-        r.symbols[last].texture = textures.symbols[symbol].clone();
+        r.symbols[last].texture = textures.symbols[symbol];
       }
 
       // // Update symbol positions on reel.
@@ -185,6 +184,7 @@ const Game = React.forwardRef<EngineRef, GameProps>(({ textures, configuration, 
       setSpinning(false);
       // //Springs cleanup
       springs.forEach((s) => s.y.set(0));
+      syncReelsWithMap();
 
       // //Reel state cleanup
       for (let i = 0; i < reels.current.length; i++) {
@@ -196,13 +196,28 @@ const Game = React.forwardRef<EngineRef, GameProps>(({ textures, configuration, 
     },
   }));
 
-  const getTexture = (x: number, y: number) => {
-    // console.log("getTexture", x, y);
-    if (y < configuration.padding || y >= configuration.numSymbols + configuration.padding) {
-      return textures.symbols[getRandomSymbol(textures.symbols)].clone();
+  const getTexture = useCallback(
+    (x: number, y: number) => {
+      // console.log("getTexture", x, y);
+      if (y < configuration.padding || y >= configuration.numSymbols + configuration.padding) {
+        return textures.symbols[getRandomSymbol(textures.symbols)];
+      }
+      return textures.symbols[map.current[y - configuration.padding][x]];
+    },
+    [configuration.numSymbols, configuration.padding, textures.symbols]
+  );
+
+  const syncReelsWithMap = useCallback(() => {
+    for (let reelIndex = 0; reelIndex < configuration.numReels; reelIndex++) {
+      const reel = reels.current[reelIndex];
+      if (!reel) continue;
+      for (let symbolIndex = 0; symbolIndex < configuration.numSymbols + 2 * configuration.padding; symbolIndex++) {
+        const sprite = reel.symbols[symbolIndex];
+        if (!sprite) continue;
+        sprite.texture = getTexture(reelIndex, symbolIndex);
+      }
     }
-    return textures.symbols[map.current[y - configuration.padding][x]].clone();
-  };
+  }, [configuration.numReels, configuration.numSymbols, configuration.padding, getTexture]);
 
   // const scale = Math.min(app.view.width / textures.background.width, app.view.height / textures.background.height);
 
@@ -219,31 +234,17 @@ const Game = React.forwardRef<EngineRef, GameProps>(({ textures, configuration, 
   const SYMBOL_HEIGHT = reelsPositionSize.height / configuration.numSymbols;
   const REEL_REAL_HEIGHT = SYMBOL_HEIGHT * (configuration.numSymbols + 2 * configuration.padding);
 
-  // console.log(scale, SYMBOL_HEIGHT, SYMBOL_WIDTH);
-  //   const mask = new PixiGraphics()
-  //     .beginFill(0xfff)
-  //     .drawRect(0, 0, SYMBOL_WIDTH * configuration.numReels * 2, configuration.numSymbols * SYMBOL_HEIGHT)
-  //     .endFill();
-
-  //   console.log(SYMBOL_HEIGHT, SYMBOL_WIDTH);
-
-  // console.log(winningLines);
-  // console.log("render");
-  // console.log(map.current);
-
-  // console.log(highlightedSymbols, DEFAULT_SYMBOL_SCALE);
-
   return (
-    <Container ref={mainConatiner}>
-      <Container x={reelsPositionSize.x} y={reelsPositionSize.y} width={reelsPositionSize.width}>
-        {/* <Graphics name="mask" draw={(g) => g.clear().beginFill(0xfff, 0.5).drawRect(0, 0, reelsPositionSize.width, reelsPositionSize.height).endFill()} ref={maskRef} /> */}
+    <pixiContainer ref={mainConatiner}>
+      <pixiContainer x={reelsPositionSize.x} y={reelsPositionSize.y} width={reelsPositionSize.width}>
+        {/* <Graphics name="mask" draw={(g) => g.clear().rect(0, 0, reelsPositionSize.width, reelsPositionSize.height).fill({ color: 0xfff, alpha: 0.5 })} ref={maskRef} /> */}
         {springs.map((spring, i) => {
           const hasFrozenSymbols = frozenSymbols?.some(([y, x]) => x === i);
           return (
-            <Container
+            <pixiContainer
               key={i}
               x={REEL_WIDTH * i}
-              filters={!hasFrozenSymbols ? [reels.current[i].blur] : null}
+              filters={!hasFrozenSymbols ? [reels.current[i].blur] : undefined}
               y={-configuration.padding * SYMBOL_HEIGHT}
               width={REEL_WIDTH}
               height={REEL_REAL_HEIGHT}
@@ -273,13 +274,20 @@ const Game = React.forwardRef<EngineRef, GameProps>(({ textures, configuration, 
                       if (!r) return;
                       reels.current[i].symbols[j] = r;
                     }}
-                    scale={isHighlight ? highlightSpring.scale.to((s) => [DEFAULT_SYMBOL_SCALE_X * s, DEFAULT_SYMBOL_SCALE_Y * s]) : [DEFAULT_SYMBOL_SCALE_X, DEFAULT_SYMBOL_SCALE_Y]}
-                    anchor={[0.5, 0.5]}
+                    scale={
+                      isHighlight
+                        ? { x: highlightSpring.scale.to((s) => DEFAULT_SYMBOL_SCALE_X * s), y: highlightSpring.scale.to((s) => DEFAULT_SYMBOL_SCALE_Y * s) }
+                        : { x: DEFAULT_SYMBOL_SCALE_X, y: DEFAULT_SYMBOL_SCALE_Y }
+                    }
+                    anchor={{
+                      x: 0.5,
+                      y: 0.5,
+                    }}
                     zIndex={isHighlight || isFrozen ? 10 : 1}
                   />
                 );
               })}
-            </Container>
+            </pixiContainer>
           );
         })}
         {winningLines.map((line, i) => (
@@ -289,29 +297,21 @@ const Game = React.forwardRef<EngineRef, GameProps>(({ textures, configuration, 
             draw={(g) => {
               g.clear();
 
-              g.lineStyle(10, 0xfcd34d, 1);
               g.moveTo(0, SYMBOL_HEIGHT * line[0][0] + SYMBOL_HEIGHT / 2);
               for (let i = 0; i < line.length; i++) {
                 g.lineTo(SYMBOL_WIDTH * line[i][1] + SYMBOL_WIDTH / 2, SYMBOL_HEIGHT * line[i][0] + SYMBOL_HEIGHT / 2);
               }
               g.lineTo(SYMBOL_WIDTH * configuration.numReels, SYMBOL_HEIGHT * line[line.length - 1][0] + SYMBOL_HEIGHT / 2);
+              g.stroke({ width: 10, color: 0xfcd34d, alpha: 1 });
             }}
           />
         ))}
-      </Container>
-
-      <Sprite texture={textures.background} scale={scale} zIndex={100} />
-    </Container>
+      </pixiContainer>
+      <pixiSprite texture={textures.background} scale={scale} zIndex={100} />
+    </pixiContainer>
   );
 });
 
 const getRandomSymbol = (symbols: Texture[]) => Math.floor(Math.random() * symbols.length);
-
-// const WinningLine = ({ line, scale, SYMBOL_HEIGHT, SYMBOL_WIDTH }: { line: Line; scale:number }) => {
-//   return <Graphics draw={(g) => {
-//     g.clear();
-//     g.lineStyle(10, 0xff0000, 1);
-//     g.moveTo(line[0][0] * scale * SYM, line[0][1] * scale);
-// }
 
 export default React.memo(Game);
