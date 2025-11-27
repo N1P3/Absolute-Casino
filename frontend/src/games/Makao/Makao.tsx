@@ -1,24 +1,15 @@
-import bg from "@/assets/makao/background.png?url";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ImperativeSpawner, SpawnerHandle, useContainerSize, waitFor, websocketRequest } from "@/lib/utils";
-import { ApplicationRef, extend, Application as PixiApplication } from "@pixi/react";
-import { useQuery } from "@tanstack/react-query";
-import { Assets, Container, Container as PixiContainer, Point, Sprite, TextStyle, Texture } from "pixi.js";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Card, { CardRef } from "../Blackjack/Card";
-import { CardKey, loadCardTextures } from "../shared";
-import { POSITIONS } from "./constants";
+import { websocketRequest } from "@/lib/utils";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CardKey } from "../shared";
 import { canPlayCard, getCardDisplayName } from "./helpers";
+import Game3DContent from "./Makao3D/Game3DContent";
+import Scene from "./Makao3D/Scene";
 import { ErrorResponse, GameState, MakaoResponse } from "./types";
 
-extend({ Sprite, Container, Text });
-
 const stakes = [5, 10, 25, 50, 100, 500, 1000];
-const PLAYER_CARD_SPACING = 60;
-const OPPONENT_CARD_SPACING = 50;
-const CARD_SCALE = 0.69;
 
 const defaultGameState: GameState = {
   state: "idle",
@@ -38,261 +29,18 @@ const defaultGameState: GameState = {
 };
 
 const Makao = () => {
-  const { isLoading, data: textures } = useQuery({
-    queryKey: ["game_assets"],
-    queryFn: async () => {
-      const cards = await loadCardTextures();
-      const bgTexture = (await Assets.load(bg)) as Texture;
-      return {
-        cards: cards,
-        background: bgTexture,
-      };
-    },
-  });
-  if (!textures || isLoading) return <div>Loading...</div>;
-  return <Inner textures={textures} />;
-};
-
-const Inner = ({ textures }: { textures: { cards: Record<CardKey, Texture>; background: Texture } }) => {
-  const app = useRef<ApplicationRef>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const gameContainer = useRef<PixiContainer>(null);
   const ws = useRef<WebSocket>(null);
-
-  const cards = useRef<{
-    playerCards: CardRef[];
-    opponentCards: CardRef[];
-    tableCard: CardRef | null;
-  }>({ playerCards: [], opponentCards: [], tableCard: null });
-
-  const spawnerRef = useRef<SpawnerHandle>(null);
-
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
-  const gameStateRef = useRef<GameState>(defaultGameState);
   const { balance, user } = useAuth();
-  const { width, height } = useContainerSize(containerRef);
   const { toast } = useToast();
   const [stake, setStake] = useState(5);
   const [selectedCard, setSelectedCard] = useState<number | null>(null);
   const [suitSelectorVisible, setSuitSelectorVisible] = useState(false);
   const [numberSelectorVisible, setNumberSelectorVisible] = useState(false);
 
-  useEffect(() => {
-    gameStateRef.current = gameState;
-  }, [gameState]);
-
-  const scale = useMemo(() => {
-    const calculatedScale = Math.min(width / textures.background.width, height / textures.background.height);
-    console.log("Scale calculation - width:", width, "height:", height, "bg.width:", textures.background.width, "bg.height:", textures.background.height, "scale:", calculatedScale);
-    // Jeśli scale jest 0 lub NaN, zwróć wartość domyślną
-    return calculatedScale > 0 ? calculatedScale : 0.5;
-  }, [width, height, textures.background.width, textures.background.height]);
-
-  const dealCard = async (cardKey: CardKey, position: "player" | "opponent" | "table", flip: boolean, index?: number) => {
-    if (!spawnerRef.current) {
-      throw new Error("Spawner not ready");
-    }
-    const bgWidth = textures.background.width * scale;
-    const bgHeight = textures.background.height * scale;
-
-    const deckX = POSITIONS.deck.xRatio * bgWidth;
-    const deckY = POSITIONS.deck.yRatio * bgHeight;
-
-    console.log("=== dealCard ===");
-    console.log("scale:", scale, "bgWidth:", bgWidth, "bgHeight:", bgHeight);
-    console.log("Initial position:", deckX, deckY);
-
-    const ref = await spawnerRef.current?.spawn(Card, {
-      facing: "back",
-      cardKey: cardKey,
-      cardTextures: textures.cards,
-      x: deckX,
-      y: deckY,
-      scale: scale * CARD_SCALE,
-    });
-
-    let targetX = 0;
-    let targetY = 0;
-
-    if (position === "player") {
-      const offset = index !== undefined ? index * PLAYER_CARD_SPACING * scale : cards.current.playerCards.length * PLAYER_CARD_SPACING * scale;
-      targetX = POSITIONS.playerHand.xRatio * bgWidth + offset;
-      targetY = POSITIONS.playerHand.yRatio * bgHeight;
-    } else if (position === "opponent") {
-      const offset = index !== undefined ? index * OPPONENT_CARD_SPACING * scale : cards.current.opponentCards.length * OPPONENT_CARD_SPACING * scale;
-      targetX = POSITIONS.computerHand.xRatio * bgWidth + offset;
-      targetY = POSITIONS.computerHand.yRatio * bgHeight;
-    } else if (position === "table") {
-      targetX = POSITIONS.table.xRatio * bgWidth - 105;
-      targetY = POSITIONS.table.yRatio * bgHeight - 125;
-    }
-
-    console.log("Target position for", position, ":", targetX, targetY);
-    console.log("ref.current:", ref.current);
-
-    await ref.current?.moveTo(new Point(targetX, targetY));
-    if (flip) {
-      await ref?.current?.setFacing("front");
-    }
-    return ref;
-  };
-
-  const clearCards = () => {
-    Object.values(cards.current)
-      .flat()
-      .forEach(async (card) => {
-        if (!card) return;
-        await card.moveTo(new Point(width / 2, -(card.spriteRef.current?.height || 0)));
-        card.spriteRef.current?.destroy();
-      });
-    cards.current = { playerCards: [], opponentCards: [], tableCard: null };
-  };
-
-  const dealInitialCards = async (playerHand: CardKey[], opponentCount: number, tableCard: CardKey) => {
-    clearCards();
-    setGameState((prev) => ({ ...prev, state: "dealing" }));
-
-    // Poczekaj aż kontener będzie miał poprawne wymiary
-    let attempts = 0;
-    while ((width === 0 || height === 0) && attempts < 50) {
-      await waitFor(100);
-      attempts++;
-    }
-
-    console.log("Starting card dealing with width:", width, "height:", height, "scale:", scale);
-
-    await waitFor(300);
-
-    for (let i = 0; i < playerHand.length; i++) {
-      const cardRef = await dealCard(playerHand[i], "player", true, i);
-      cards.current.playerCards.push(cardRef.current!);
-      await waitFor(200);
-    }
-
-    for (let i = 0; i < opponentCount; i++) {
-      const cardRef = await dealCard("BB", "opponent", false, i);
-      cards.current.opponentCards.push(cardRef.current!);
-      await waitFor(200);
-    }
-
-    const tableCardRef = await dealCard(tableCard, "table", true);
-    cards.current.tableCard = tableCardRef.current!;
-
-    setGameState((prev) => ({ ...prev, state: "playing" }));
-  };
-
-  const updateCards = async (response: MakaoResponse) => {
-    const currentState = gameStateRef.current;
-    const bgWidth = textures.background.width * scale;
-    const bgHeight = textures.background.height * scale;
-
-    // 1. Handle Player Hand
-    if (response.playerHand) {
-      const newHandKeys = response.playerHand;
-      const oldHandRefs = [...cards.current.playerCards];
-      const nextPlayerCards: CardRef[] = new Array(newHandKeys.length).fill(null);
-      const playedCards: CardRef[] = [];
-
-      // Match existing cards
-      for (let i = 0; i < newHandKeys.length; i++) {
-        const key = newHandKeys[i];
-        const matchIndex = oldHandRefs.findIndex((ref) => ref.cardKey === key);
-        if (matchIndex !== -1) {
-          nextPlayerCards[i] = oldHandRefs[matchIndex];
-          oldHandRefs.splice(matchIndex, 1);
-        }
-      }
-
-      // Remaining in oldHandRefs are played/removed cards
-      playedCards.push(...oldHandRefs);
-
-      // 2. Handle Table Card
-      let newTableCardRef = cards.current.tableCard;
-      if (response.tableCard && response.tableCard !== currentState.tableCard) {
-        // Check if played from our hand
-        const playedCardRef = playedCards.find((ref) => ref.cardKey === response.tableCard);
-
-        if (playedCardRef) {
-          // Animate played card to table
-          const targetX = POSITIONS.table.xRatio * bgWidth - 105;
-          const targetY = POSITIONS.table.yRatio * bgHeight - 125;
-
-          // Remove old table card
-          if (cards.current.tableCard) {
-            cards.current.tableCard.moveTo(new Point(width / 2, height + 200));
-            cards.current.tableCard.spriteRef.current?.destroy();
-          }
-
-          await playedCardRef.moveTo(new Point(targetX, targetY));
-          newTableCardRef = playedCardRef;
-
-          // Remove from playedCards
-          const idx = playedCards.indexOf(playedCardRef);
-          playedCards.splice(idx, 1);
-        } else {
-          // Not from our hand (opponent or other)
-          if (cards.current.tableCard) {
-            cards.current.tableCard.moveTo(new Point(width / 2, height + 200));
-            cards.current.tableCard.spriteRef.current?.destroy();
-          }
-          const tableCardRef = await dealCard(response.tableCard, "table", true);
-          newTableCardRef = tableCardRef.current!;
-        }
-      }
-      cards.current.tableCard = newTableCardRef;
-
-      // 3. Destroy other removed cards
-      for (const ref of playedCards) {
-        ref.moveTo(new Point(width / 2, height + 200));
-        ref.spriteRef.current?.destroy();
-      }
-
-      // 4. Deal new cards and fill nextPlayerCards
-      for (let i = 0; i < nextPlayerCards.length; i++) {
-        if (!nextPlayerCards[i]) {
-          const cardRef = await dealCard(newHandKeys[i], "player", true, i);
-          nextPlayerCards[i] = cardRef.current!;
-        }
-      }
-
-      cards.current.playerCards = nextPlayerCards;
-
-      // 5. Reposition all player cards
-      for (let i = 0; i < cards.current.playerCards.length; i++) {
-        const card = cards.current.playerCards[i];
-        const offset = i * PLAYER_CARD_SPACING * scale;
-        const targetX = POSITIONS.playerHand.xRatio * bgWidth + offset;
-        const targetY = POSITIONS.playerHand.yRatio * bgHeight;
-
-        // Animate to new position
-        card.moveTo(new Point(targetX, targetY));
-      }
-    }
-
-    if (response.opponentHandCount !== undefined && response.opponentHandCount !== currentState.opponentHandCount) {
-      const diff = response.opponentHandCount - cards.current.opponentCards.length;
-
-      if (diff > 0) {
-        for (let i = 0; i < diff; i++) {
-          const cardRef = await dealCard("BB", "opponent", false, cards.current.opponentCards.length);
-          cards.current.opponentCards.push(cardRef.current!);
-        }
-      } else if (diff < 0) {
-        for (let i = 0; i < Math.abs(diff); i++) {
-          const card = cards.current.opponentCards.pop();
-          if (card) {
-            await card.moveTo(new Point(width / 2, height + 200));
-            card.spriteRef.current?.destroy();
-          }
-        }
-      }
-    }
-  };
-
   const updateGameState = useCallback(
     async (response: MakaoResponse) => {
       console.log("updateGameState called with:", response);
-      console.log("User object from auth:", user);
 
       if (!response.playerHand || !response.tableCard) {
         console.error("Missing required data - playerHand:", response.playerHand, "tableCard:", response.tableCard);
@@ -300,9 +48,6 @@ const Inner = ({ textures }: { textures: { cards: Record<CardKey, Texture>; back
       }
 
       const isMyTurn = user?.id === response.currentPlayerId;
-      console.log("Is my turn:", isMyTurn, "My ID:", user?.id, "Current player ID:", response.currentPlayerId);
-
-      const currentState = gameStateRef.current;
 
       setGameState((prev) => ({
         ...prev,
@@ -335,31 +80,21 @@ const Inner = ({ textures }: { textures: { cards: Record<CardKey, Texture>; back
           }, 1500);
         }
       }
-
-      if (currentState.state === "waiting" || currentState.state === "idle") {
-        await dealInitialCards(response.playerHand!, response.opponentHandCount || 0, response.tableCard!);
-      } else {
-        await updateCards(response);
-      }
     },
     [user]
   );
 
   const handleGameOver = useCallback(
     async (response: MakaoResponse) => {
-      // Update cards first before showing game over screen
-      if (response.playerHand && response.tableCard) {
-        await updateCards(response);
-      }
-
-      await waitFor(1000);
-
       setGameState((prev) => ({
         ...prev,
         state: "end",
         result: response.result === "WIN" ? "WYGRANA!" : "PRZEGRANA!",
         moneyWon: response.moneyWon || 0,
         opponentHandCount: response.opponentHandCount || 0,
+        // Update final state if provided
+        playerHand: response.playerHand || prev.playerHand,
+        tableCard: response.tableCard || prev.tableCard,
       }));
 
       toast({
@@ -426,19 +161,33 @@ const Inner = ({ textures }: { textures: { cards: Record<CardKey, Texture>; back
     );
   };
 
-  const skipTurn = () => {
-    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
-    ws.current.send(
-      JSON.stringify({
-        command: "skip_turn",
-      })
-    );
-  };
-
   const handleCardClick = (index: number) => {
     if (!gameState.isMyTurn || !gameState.tableCard) return;
 
     const card = gameState.playerHand[index];
+    
+    // Check if card can be played
+    const canPlay = canPlayCard(
+      card,
+      gameState.tableCard,
+      gameState.currentSuit,
+      gameState.requiredNumber,
+      gameState.pendingDrawCount,
+      gameState.drawType,
+      gameState.pendingSkipTurns,
+      gameState.playerToSkip,
+      user?.id
+    );
+
+    if (!canPlay) {
+        toast({
+            title: "Nieprawidłowy ruch",
+            description: "Tej karty nie można teraz zagrać",
+            variant: "destructive"
+        });
+        return;
+    }
+
     const cardValue = card[0];
 
     if (cardValue === "A") {
@@ -545,326 +294,212 @@ const Inner = ({ textures }: { textures: { cards: Record<CardKey, Texture>; back
     };
   }, [updateGameState, handleGameOver, toast]);
 
-  // Automatyczne przełączenie na pełny ekran przy montowaniu komponentu
-  useEffect(() => {
-    const enterFullscreen = async () => {
-      try {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
-        }
-      } catch (error) {
-        console.log("Nie można przełączyć na pełny ekran:", error);
-      }
-    };
-
-    enterFullscreen();
-
-    // Opcjonalnie: wyjście z pełnego ekranu przy odmontowaniu
-    return () => {
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-    };
-  }, []);
-
   return (
-    <div>
-      <div className="w-full h-screen flex flex-row justify-center items-center p-[50px]">
-        <div
-          className=" shadow-2xl shadow-black"
-          style={{
-            aspectRatio: ` ${textures.background.width} / ${textures.background.height}`,
-            height: "100%",
-            overflow: "hidden",
-            position: "relative",
-          }}
-          ref={containerRef}
-        >
-          <PixiApplication
-            background="rgb(31 44 69)"
-            ref={(a) => {
-              if (a) app.current = a;
-            }}
-            resizeTo={containerRef.current!}
-          >
-            <pixiContainer
-              ref={(ref) => {
-                if (!ref) return;
-                gameContainer.current = ref;
-              }}
-              key="gameContainer"
-              sortableChildren={true}
-            >
-              <>
-                <pixiSprite
-                  // name="background"
-                  texture={textures.background}
-                  scale={scale}
-                />
-                <ImperativeSpawner ref={spawnerRef} />
-                <pixiContainer
-                  x={POSITIONS.deck.xRatio * textures.background.width * scale}
-                  y={POSITIONS.deck.yRatio * textures.background.height * scale}
-                  // name="deck"
-                >
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Card key={i} cardKey="BB" facing={"back"} cardTextures={textures.cards} x={i * 2} y={-i * 2} scale={scale * CARD_SCALE} />
-                  ))}
-                </pixiContainer>
+    <div className="flex flex-col h-screen bg-background relative overflow-hidden">
+      {/* 3D Scene */}
+      <div className="flex-1 relative">
+        <Scene>
+          <Game3DContent 
+            state={gameState} 
+            onCardClick={handleCardClick}
+            onDrawCard={drawCard}
+          />
+        </Scene>
+        
+        {/* Game Result Overlay */}
+        {gameState.result && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+                <div className="bg-black/80 p-8 rounded-xl border-4 border-white text-center animate-in fade-in zoom-in duration-300">
+                    <h1 className={`text-6xl font-bold mb-4 ${gameState.result.includes("WYGRANA") ? "text-green-500" : "text-red-500"}`}>
+                        {gameState.result}
+                    </h1>
+                    {gameState.moneyWon > 0 && (
+                        <p className="text-4xl text-yellow-400">Wygrana: {gameState.moneyWon} PLN</p>
+                    )}
+                </div>
+            </div>
+        )}
+      </div>
 
-                {/* Opponent card count */}
-                {gameState.opponentHandCount > 0 && (
-                  <pixiText
-                    text={`Przeciwnik: ${gameState.opponentHandCount}`}
-                    x={POSITIONS.computerHand.xRatio * textures.background.width * scale}
-                    y={POSITIONS.computerHand.yRatio * textures.background.height * scale - 90}
-                    anchor={0}
-                    style={
-                      new TextStyle({
-                        fill: "#ffffff",
-                        stroke: {
-                          color: "#000000",
-                          width: 4,
-                        },
-                        // strokeThickness: 4,
-
-                        fontSize: 32,
-                        fontFamily: "Outfit",
-                      })
-                    }
-                  />
-                )}
-
-                {/* Current table card */}
-                {gameState.tableCard && (
-                  <pixiText
-                    text={`Stół: ${getCardDisplayName(gameState.tableCard)}`}
-                    x={POSITIONS.table.xRatio * textures.background.width * scale}
-                    y={POSITIONS.table.yRatio * textures.background.height * scale - 150}
-                    anchor={0.5}
-                    style={
-                      new TextStyle({
-                        fill: "#ffffff",
-                        // stroke: "#000000",
-                        stroke: {
-                          color: "#000000",
-                          width: 5,
-                        },
-
-                        // strokeThickness: 5,
-                        fontSize: 50,
-                        fontFamily: "Outfit",
-                      })
-                    }
-                  />
-                )}
-
-                {/* Game result */}
-                {gameState.result && (
-                  <pixiText
-                    text={gameState.result}
-                    x={width / 2}
-                    y={height / 2}
-                    anchor={0.5}
-                    scale={1}
-                    style={
-                      new TextStyle({
-                        fill: gameState.result.includes("WYGRANA") ? "lime" : "red",
-                        stroke: {
-                          color: "black",
-                          width: 10,
-                        },
-                        fontSize: gameState.result.includes("WYGRANA") ? 250 : 200,
-                        fontFamily: "Outfit",
-                      })
-                    }
-                  />
-                )}
-              </>
-            </pixiContainer>
-          </PixiApplication>
-
-          {/* User Interface */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: "1rem",
-              width: "100%",
-              display: "flex",
-              justifyContent: "center",
-            }}
-          >
-            <div
-              className="shadow-md shadow-black rounded-md w-[80%]"
-              style={{
-                backdropFilter: "blur(10px) brightness(0.8)",
-                padding: "1rem",
-              }}
-            >
-              <div className="flex justify-between items-center">
+      {/* UI Overlay */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
+        <div className="bg-black/60 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-white/10 pointer-events-auto w-auto max-w-[95vw]">
+            <div className="flex justify-between items-center gap-8">
+                {/* Stats */}
                 <div className="flex gap-6">
-                  <div className="h-full flex flex-col min-w-[150px] items-center">
-                    <p className="text-sm text-center text-white">Saldo</p>
-                    <p className="text-5xl text-center text-white">{balance}</p>
+                  <div className="flex flex-col items-center">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">Saldo</p>
+                    <p className="text-3xl font-bold text-white">{balance}</p>
                   </div>
-                  <div className="flex gap-3">
-                    <Button className="h-[80px] text-2xl text-white" onClick={decreaseStake} disabled={gameState.state !== "idle"}>
+                  
+                  <div className="flex items-center gap-2 bg-white/5 rounded-lg p-2">
+                    <Button 
+                        variant="ghost" 
+                        size="icon"
+                        className="h-10 w-10 text-white hover:bg-white/10" 
+                        onClick={decreaseStake} 
+                        disabled={gameState.state !== "idle"}
+                    >
                       -
                     </Button>
-                    <div className="h-full flex flex-col w-[100px]">
-                      <p className="text-sm text-center text-white">Stawka</p>
-                      <p className="text-5xl text-center text-white">{stake}</p>
+                    <div className="flex flex-col items-center min-w-[80px]">
+                      <p className="text-xs text-gray-400 uppercase tracking-wider">Stawka</p>
+                      <p className="text-2xl font-bold text-white">{stake}</p>
                     </div>
-                    <Button className="h-[80px] text-2xl text-white" onClick={increaseStake} disabled={gameState.state !== "idle"}>
+                    <Button 
+                        variant="ghost" 
+                        size="icon"
+                        className="h-10 w-10 text-white hover:bg-white/10" 
+                        onClick={increaseStake} 
+                        disabled={gameState.state !== "idle"}
+                    >
                       +
                     </Button>
                   </div>
                 </div>
 
-                {gameState.state === "idle" && (
-                  <Button size="lg" className="h-[80px] text-4xl text-white" onClick={joinRoom}>
-                    DOŁĄCZ DO GRY
-                  </Button>
-                )}
+                {/* Action Buttons */}
+                <div className="flex gap-4 items-center">
+                    {gameState.state === "playing" && (
+                        <div className="flex gap-2 mr-4 overflow-x-auto max-w-[600px] p-2 bg-white/5 rounded-lg border border-white/10">
+                            {gameState.playerHand.map((card, index) => {
+                                const canPlay = gameState.isMyTurn && canPlayCard(
+                                    card,
+                                    gameState.tableCard,
+                                    gameState.currentSuit,
+                                    gameState.requiredNumber,
+                                    gameState.pendingDrawCount,
+                                    gameState.drawType,
+                                    gameState.pendingSkipTurns,
+                                    gameState.playerToSkip,
+                                    user?.id
+                                );
+                                
+                                const isRed = card.includes('H') || card.includes('D');
+                                
+                                return (
+                                    <Button
+                                        key={`${index}-${card}`}
+                                        variant={canPlay ? "default" : "outline"}
+                                        className={`h-14 min-w-[60px] px-2 text-lg font-bold border-2 transition-all ${
+                                            canPlay 
+                                                ? "bg-green-600 hover:bg-green-500 border-green-400 scale-105 shadow-lg shadow-green-900/20" 
+                                                : "bg-gray-800/50 border-gray-600 opacity-50 grayscale"
+                                        }`}
+                                        onClick={() => handleCardClick(index)}
+                                        disabled={!canPlay}
+                                    >
+                                        <span className={isRed && !canPlay ? "text-red-400" : "text-white"}>
+                                            {getCardDisplayName(card)}
+                                        </span>
+                                    </Button>
+                                );
+                            })}
+                        </div>
+                    )}
 
-                {gameState.state === "waiting" && (
-                  <Button size="lg" className="h-[80px] text-3xl text-white" onClick={startGame}>
-                    ROZPOCZNIJ GRĘ
-                  </Button>
-                )}
-
-                {gameState.state === "playing" && gameState.isMyTurn && !gameState.pendingSkipTurns && (
-                  <Button size="lg" className="h-[80px] text-3xl text-white" onClick={drawCard}>
-                    DOBIERZ KARTĘ
-                  </Button>
-                )}
-
-                {gameState.state === "playing" && gameState.isMyTurn && gameState.playerToSkip === user?.id && (
-                  <div className="h-[80px] flex items-center justify-center text-white text-2xl">Automatycznie pomijanie tury...</div>
-                )}
-
-                {gameState.state === "end" && (
-                  <Button
-                    size="lg"
-                    className="h-[80px] text-4xl text-white"
-                    onClick={() => {
-                      setGameState(defaultGameState);
-                      clearCards();
-                    }}
-                  >
-                    NOWA GRA
-                  </Button>
-                )}
-              </div>
-
-              {/* Player cards - clickable */}
-              {gameState.state === "playing" && gameState.playerHand.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-center text-white text-xl mb-2">Twoje karty {gameState.isMyTurn ? "(kliknij, aby zagrać):" : ""}</p>
-                  <div className="flex gap-2 justify-center flex-wrap">
-                    {gameState.playerHand.map((card, index) => {
-                      const canPlay =
-                        gameState.tableCard && gameState.isMyTurn
-                          ? canPlayCard(
-                              card,
-                              gameState.tableCard,
-                              gameState.currentSuit,
-                              gameState.requiredNumber,
-                              gameState.pendingDrawCount,
-                              gameState.drawType,
-                              gameState.pendingSkipTurns,
-                              gameState.playerToSkip,
-                              user?.id
-                            )
-                          : false;
-                      return (
-                        <Button key={index} onClick={() => handleCardClick(index)} disabled={!canPlay} className={`text-lg h-[60px] ${canPlay ? "bg-green-600 hover:bg-green-700" : "bg-gray-600"}`}>
-                          {getCardDisplayName(card)}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Suit selector for Ace */}
-          {suitSelectorVisible && (
-            <div
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 1000,
-              }}
-            >
-              <div className="bg-black bg-opacity-90 p-6 rounded-lg border-4 border-white">
-                <p className="text-white text-2xl mb-4 text-center">Wybierz kolor:</p>
-                <div className="flex gap-4">
-                  <Button className="text-4xl h-[80px] w-[80px] bg-red-600 hover:bg-red-700" onClick={() => handleSuitSelection("H")}>
-                    ♥
-                  </Button>
-                  <Button className="text-4xl h-[80px] w-[80px] bg-red-600 hover:bg-red-700" onClick={() => handleSuitSelection("D")}>
-                    ♦
-                  </Button>
-                  <Button className="text-4xl h-[80px] w-[80px] bg-gray-800 hover:bg-gray-900" onClick={() => handleSuitSelection("C")}>
-                    ♣
-                  </Button>
-                  <Button className="text-4xl h-[80px] w-[80px] bg-gray-800 hover:bg-gray-900" onClick={() => handleSuitSelection("S")}>
-                    ♠
-                  </Button>
-                </div>
-                <Button
-                  className="mt-4 w-full"
-                  variant="destructive"
-                  onClick={() => {
-                    setSuitSelectorVisible(false);
-                    setSelectedCard(null);
-                  }}
-                >
-                  Anuluj
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Number selector for Jack */}
-          {numberSelectorVisible && (
-            <div
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 1000,
-              }}
-            >
-              <div className="bg-black bg-opacity-90 p-6 rounded-lg border-4 border-white">
-                <p className="text-white text-2xl mb-4 text-center">Wybierz wymaganą liczbę (5-10):</p>
-                <div className="flex gap-3">
-                  {["5", "6", "7", "8", "9", "T"].map((num) => (
-                    <Button key={num} className="text-2xl h-[70px] w-[70px] bg-blue-600 hover:bg-blue-700" onClick={() => handleNumberSelection(num)}>
-                      {num === "T" ? "10" : num}
+                    {gameState.state === "idle" && (
+                    <Button size="lg" className="h-16 text-2xl px-8 bg-green-600 hover:bg-green-700" onClick={joinRoom}>
+                        DOŁĄCZ
                     </Button>
-                  ))}
+                    )}
+
+                    {gameState.state === "waiting" && (
+                    <Button size="lg" className="h-16 text-2xl px-8 bg-blue-600 hover:bg-blue-700" onClick={startGame}>
+                        START
+                    </Button>
+                    )}
+
+                    {gameState.state === "playing" && gameState.isMyTurn && !gameState.pendingSkipTurns && (
+                    <Button size="lg" className="h-16 text-2xl px-8 bg-yellow-600 hover:bg-yellow-700" onClick={drawCard}>
+                        DOBIERZ
+                    </Button>
+                    )}
+
+                    {gameState.state === "playing" && gameState.isMyTurn && gameState.playerToSkip === user?.id && (
+                    <div className="h-16 flex items-center px-8 text-white text-xl bg-white/10 rounded-md">
+                        Pomijanie tury...
+                    </div>
+                    )}
+
+                    {gameState.state === "end" && (
+                    <Button
+                        size="lg"
+                        className="h-16 text-2xl px-8 bg-purple-600 hover:bg-purple-700"
+                        onClick={() => {
+                        setGameState(defaultGameState);
+                        }}
+                    >
+                        NOWA GRA
+                    </Button>
+                    )}
                 </div>
-                <Button
-                  className="mt-4 w-full"
-                  variant="destructive"
-                  onClick={() => {
-                    setNumberSelectorVisible(false);
-                    setSelectedCard(null);
-                  }}
-                >
-                  Anuluj
-                </Button>
-              </div>
             </div>
-          )}
         </div>
       </div>
+
+      {/* Suit selector for Ace */}
+      {suitSelectorVisible && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-50">
+          <div className="bg-gray-900 p-8 rounded-xl border-2 border-white/20 shadow-2xl">
+            <p className="text-white text-2xl mb-6 text-center font-bold">Wybierz kolor</p>
+            <div className="flex gap-4 mb-6">
+              <Button className="text-4xl h-20 w-20 bg-red-600 hover:bg-red-700 rounded-xl" onClick={() => handleSuitSelection("H")}>
+                ♥
+              </Button>
+              <Button className="text-4xl h-20 w-20 bg-red-600 hover:bg-red-700 rounded-xl" onClick={() => handleSuitSelection("D")}>
+                ♦
+              </Button>
+              <Button className="text-4xl h-20 w-20 bg-gray-800 hover:bg-gray-700 rounded-xl" onClick={() => handleSuitSelection("C")}>
+                ♣
+              </Button>
+              <Button className="text-4xl h-20 w-20 bg-gray-800 hover:bg-gray-700 rounded-xl" onClick={() => handleSuitSelection("S")}>
+                ♠
+              </Button>
+            </div>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => {
+                setSuitSelectorVisible(false);
+                setSelectedCard(null);
+              }}
+            >
+              Anuluj
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Number selector for Jack */}
+      {numberSelectorVisible && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-50">
+          <div className="bg-gray-900 p-8 rounded-xl border-2 border-white/20 shadow-2xl">
+            <p className="text-white text-2xl mb-6 text-center font-bold">Wybierz liczbę</p>
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              {["5", "6", "7", "8", "9", "T"].map((num) => (
+                <Button 
+                    key={num} 
+                    className="text-2xl h-16 w-16 bg-blue-600 hover:bg-blue-700 rounded-xl" 
+                    onClick={() => handleNumberSelection(num)}
+                >
+                  {num === "T" ? "10" : num}
+                </Button>
+              ))}
+            </div>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => {
+                setNumberSelectorVisible(false);
+                setSelectedCard(null);
+              }}
+            >
+              Anuluj
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
