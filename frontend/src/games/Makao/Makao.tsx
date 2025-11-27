@@ -34,7 +34,7 @@ const Makao = () => {
   const { balance, user } = useAuth();
   const { toast } = useToast();
   const [stake, setStake] = useState(5);
-  const [selectedCard, setSelectedCard] = useState<number | null>(null);
+  const [selectedCards, setSelectedCards] = useState<number[]>([]);
   const [suitSelectorVisible, setSuitSelectorVisible] = useState(false);
   const [numberSelectorVisible, setNumberSelectorVisible] = useState(false);
 
@@ -140,11 +140,11 @@ const Makao = () => {
     );
   };
 
-  const playCard = (cardIndex: number, chosenSuit?: string, chosenNumber?: string, chosenValue?: string) => {
+  const playCard = (cardIndices: number[], chosenSuit?: string, chosenNumber?: string, chosenValue?: string) => {
     if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
     const payload: any = {
       command: "play_card",
-      card_index: cardIndex,
+      card_indices: cardIndices,
     };
     if (chosenSuit) payload.chosen_suit = chosenSuit;
     if (chosenNumber) payload.chosen_number = chosenNumber;
@@ -165,55 +165,57 @@ const Makao = () => {
     if (!gameState.isMyTurn || !gameState.tableCard) return;
 
     const card = gameState.playerHand[index];
-    
-    // Check if card can be played
-    const canPlay = canPlayCard(
-      card,
-      gameState.tableCard,
-      gameState.currentSuit,
-      gameState.requiredNumber,
-      gameState.pendingDrawCount,
-      gameState.drawType,
-      gameState.pendingSkipTurns,
-      gameState.playerToSkip,
-      user?.id
-    );
-
-    if (!canPlay) {
-        toast({
-            title: "Nieprawidłowy ruch",
-            description: "Tej karty nie można teraz zagrać",
-            variant: "destructive"
-        });
-        return;
-    }
-
     const cardValue = card[0];
 
-    if (cardValue === "A") {
-      setSelectedCard(index);
-      setSuitSelectorVisible(true);
-    } else if (cardValue === "J") {
-      setSelectedCard(index);
-      setNumberSelectorVisible(true);
+    // If we already have selected cards, check if the new card matches their rank
+    if (selectedCards.length > 0) {
+        const firstIndex = selectedCards[0];
+        const firstCard = gameState.playerHand[firstIndex];
+        if (firstCard[0] !== cardValue) {
+            // Different rank, clear selection and select new one
+            setSelectedCards([index]);
+            return;
+        }
+    }
+
+    // Toggle selection
+    if (selectedCards.includes(index)) {
+        setSelectedCards(selectedCards.filter(i => i !== index));
     } else {
-      playCard(index);
+        setSelectedCards([...selectedCards, index]);
     }
   };
 
+  const handlePlaySelected = () => {
+      if (selectedCards.length === 0) return;
+      
+      const firstIndex = selectedCards[0];
+      const card = gameState.playerHand[firstIndex];
+      const cardValue = card[0];
+
+      if (cardValue === "A") {
+          setSuitSelectorVisible(true);
+      } else if (cardValue === "J") {
+          setNumberSelectorVisible(true);
+      } else {
+          playCard(selectedCards);
+          setSelectedCards([]);
+      }
+  }
+
   const handleSuitSelection = (suit: string) => {
-    if (selectedCard !== null) {
-      playCard(selectedCard, suit);
+    if (selectedCards.length > 0) {
+      playCard(selectedCards, suit);
       setSuitSelectorVisible(false);
-      setSelectedCard(null);
+      setSelectedCards([]);
     }
   };
 
   const handleNumberSelection = (number: string) => {
-    if (selectedCard !== null) {
-      playCard(selectedCard, undefined, number);
+    if (selectedCards.length > 0) {
+      playCard(selectedCards, undefined, number);
       setNumberSelectorVisible(false);
-      setSelectedCard(null);
+      setSelectedCards([]);
     }
   };
 
@@ -376,26 +378,36 @@ const Makao = () => {
                                 );
                                 
                                 const isRed = card.includes('H') || card.includes('D');
+                                const isSelected = selectedCards.includes(index);
+                                const isMatchingRank = selectedCards.length > 0 && gameState.playerHand[selectedCards[0]][0] === card[0];
                                 
                                 return (
                                     <Button
                                         key={`${index}-${card}`}
-                                        variant={canPlay ? "default" : "outline"}
+                                        variant={isSelected ? "default" : "outline"}
                                         className={`h-14 min-w-[60px] px-2 text-lg font-bold border-2 transition-all ${
-                                            canPlay 
-                                                ? "bg-green-600 hover:bg-green-500 border-green-400 scale-105 shadow-lg shadow-green-900/20" 
-                                                : "bg-gray-800/50 border-gray-600 opacity-50 grayscale"
+                                            isSelected 
+                                                ? "bg-green-600 border-green-400 scale-110 shadow-lg shadow-green-900/20 ring-2 ring-white" 
+                                                : canPlay || isMatchingRank
+                                                    ? "hover:bg-white/10 border-white/20"
+                                                    : "bg-gray-800/50 border-gray-600 opacity-50 grayscale"
                                         }`}
                                         onClick={() => handleCardClick(index)}
-                                        disabled={!canPlay}
+                                        disabled={!canPlay && !isMatchingRank}
                                     >
-                                        <span className={isRed && !canPlay ? "text-red-400" : "text-white"}>
+                                        <span className={isRed && (!canPlay && !isMatchingRank) ? "text-red-400" : "text-white"}>
                                             {getCardDisplayName(card)}
                                         </span>
                                     </Button>
                                 );
                             })}
                         </div>
+                    )}
+
+                    {gameState.state === "playing" && gameState.isMyTurn && selectedCards.length > 0 && (
+                        <Button size="lg" className="h-16 text-2xl px-8 bg-green-600 hover:bg-green-700 animate-in fade-in zoom-in" onClick={handlePlaySelected}>
+                            GRAJ ({selectedCards.length})
+                        </Button>
                     )}
 
                     {gameState.state === "idle" && (
@@ -462,7 +474,7 @@ const Makao = () => {
               variant="outline"
               onClick={() => {
                 setSuitSelectorVisible(false);
-                setSelectedCard(null);
+                setSelectedCards([]);
               }}
             >
               Anuluj
@@ -492,7 +504,7 @@ const Makao = () => {
               variant="outline"
               onClick={() => {
                 setNumberSelectorVisible(false);
-                setSelectedCard(null);
+                setSelectedCards([]);
               }}
             >
               Anuluj
