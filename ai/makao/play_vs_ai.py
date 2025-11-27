@@ -5,6 +5,19 @@ import torch
 from sb3_contrib import MaskablePPO
 from makao_env import MakaoEnv
 
+def format_card(card_str):
+    if not card_str: return ""
+    rank = card_str[0]
+    suit = card_str[1]
+    
+    rank_map = {'T': '10'}
+    suit_map = {'H': '♥', 'D': '♦', 'C': '♣', 'S': '♠'}
+    
+    return f"{rank_map.get(rank, rank)}{suit_map.get(suit, suit)}"
+
+def format_hand(hand):
+    return "[" + ", ".join(format_card(c) for c in hand) + "]"
+
 def play_vs_ai():
     if not os.path.exists("makao_ppo_model.zip"):
         print("Error: 'makao_ppo_model.zip' not found.")
@@ -40,7 +53,7 @@ def play_vs_ai():
         
         # Display Game State
         print(f"\n{'-'*20} Turn: {'YOU' if current_player == human_player else 'AI'} {'-'*20}")
-        print(f"Table Card: [{env.game.table_card}]")
+        print(f"Table Card: [{format_card(env.game.table_card)}]")
         
         # Show active effects
         effects = []
@@ -51,12 +64,12 @@ def play_vs_ai():
         if effects:
             print("Active Effects: " + ", ".join(effects))
             
-        print(f"AI Hand: {len(env.hands[ai_player])} cards")
+        print(f"AI Hand: {format_hand(env.hands[ai_player])}")
 
         if current_player == human_player:
             # --- HUMAN TURN ---
             hand = env.hands[human_player]
-            print(f"Your Hand: {hand}")
+            print(f"Your Hand: {format_hand(hand)}")
             
             # Get valid actions
             mask = env.action_masks()
@@ -68,7 +81,7 @@ def play_vs_ai():
             for idx in valid_indices:
                 if idx < 52:
                     card = env.card_map[idx]
-                    desc = f"Play {card}"
+                    desc = f"Play {format_card(card)}"
                 elif idx == 52:
                     desc = "Draw Card"
                 elif idx == 53:
@@ -127,7 +140,7 @@ def play_vs_ai():
                 if count >= 5: break
                 
                 if idx < 52:
-                    move_name = f"Play {env.card_map[idx]}"
+                    move_name = f"Play {format_card(env.card_map[idx])}"
                 elif idx == 52:
                     move_name = "Draw"
                 elif idx == 53:
@@ -141,7 +154,7 @@ def play_vs_ai():
             
             # Execute
             if action < 52:
-                move_desc = f"Plays {env.card_map[action]}"
+                move_desc = f"Plays {format_card(env.card_map[action])}"
             elif action == 52:
                 move_desc = "Draws a card"
             elif action == 53:

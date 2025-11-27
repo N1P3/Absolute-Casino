@@ -45,6 +45,7 @@ public class MakaoAI {
     }
 
     public AIAction predictMove(MakaoGame game, MakaoPlayer aiPlayer, MakaoPlayer opponent) {
+        logAIHand(aiPlayer);
         if (session == null) {
             System.err.println("AI Error: Session is null (Model not loaded)");
             return null;
@@ -89,6 +90,20 @@ public class MakaoAI {
             // 5. Select Best Valid Action (Argmax with Mask)
             int bestAction = -1;
             float maxVal = -Float.MAX_VALUE;
+
+            // Calculate Softmax probabilities
+            double[] probs = new double[54];
+            double sumExp = 0.0;
+            // Use max logit for numerical stability
+            float maxLogit = -Float.MAX_VALUE;
+            for (float l : actionLogits) maxLogit = Math.max(maxLogit, l);
+
+            for (float logit : actionLogits) {
+                sumExp += Math.exp(logit - maxLogit);
+            }
+            for (int i = 0; i < 54; i++) {
+                probs[i] = Math.exp(actionLogits[i] - maxLogit) / sumExp;
+            }
             
             for (int i = 0; i < 54; i++) {
                 if (mask[i]) {
@@ -97,6 +112,26 @@ public class MakaoAI {
                         bestAction = i;
                     }
                 }
+            }
+
+            // Log decision details
+            if (bestAction != -1) {
+                AIAction chosen = decodeAction(bestAction, aiPlayer);
+                String actionDesc = formatAction(chosen);
+                double confidence = probs[bestAction] * 100.0;
+                System.out.printf("AI Decision: %s (Confidence: %.2f%%)%n", actionDesc, confidence);
+
+                System.out.print("  Alternatives: ");
+                boolean first = true;
+                for (int i = 0; i < 54; i++) {
+                    if (mask[i] && i != bestAction) {
+                        if (!first) System.out.print(", ");
+                        AIAction cand = decodeAction(i, aiPlayer);
+                        System.out.printf("%s (%.1f%%)", formatAction(cand), probs[i] * 100.0);
+                        first = false;
+                    }
+                }
+                System.out.println();
             }
             
             // 6. Convert to AIAction
@@ -211,5 +246,47 @@ public class MakaoAI {
         }
         
         return Collections.max(counts.entrySet(), Map.Entry.comparingByValue()).getKey();
+    }
+
+    private void logAIHand(MakaoPlayer aiPlayer) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("AI Hand: [");
+        List<String> hand = aiPlayer.getHand();
+        for (int i = 0; i < hand.size(); i++) {
+            sb.append(formatCard(hand.get(i)));
+            if (i < hand.size() - 1) {
+                sb.append(", ");
+            }
+        }
+        sb.append("]");
+        System.out.println(sb.toString());
+    }
+
+    private String formatAction(AIAction action) {
+        if ("PLAY".equals(action.type)) {
+            return "PLAY " + formatCard(action.card);
+        }
+        return action.type;
+    }
+
+    private String formatCard(String card) {
+        if (card == null || card.length() < 2) return card;
+        char rankChar = card.charAt(0);
+        char suitChar = card.charAt(1);
+
+        String rankStr;
+        if (rankChar == 'T') rankStr = "10";
+        else rankStr = String.valueOf(rankChar);
+
+        String suitStr;
+        switch (suitChar) {
+            case 'H': suitStr = "❤️"; break;
+            case 'D': suitStr = "♦️"; break;
+            case 'C': suitStr = "♣️"; break;
+            case 'S': suitStr = "♠️"; break;
+            default: suitStr = String.valueOf(suitChar);
+        }
+
+        return rankStr + suitStr;
     }
 }
