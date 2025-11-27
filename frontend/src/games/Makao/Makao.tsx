@@ -1,42 +1,19 @@
-import React, {
-  useRef,
-  useMemo,
-  useState,
-  useEffect,
-  useCallback,
-} from "react";
-import {
-  Stage,
-  Sprite,
-  Container,
-  createRoot,
-  ReactPixiRoot,
-  Text,
-} from "@pixi/react";
-import {
-  Application,
-  Texture,
-  Container as PixiContainer,
-  Point,
-  TextStyle,
-} from "pixi.js";
-import { useQuery } from "@tanstack/react-query";
-import { Assets } from "pixi.js";
 import bg from "@/assets/makao/background.png?url";
-import { CardKey, loadCardTextures } from "../shared";
-import Card, { CardRef } from "../Blackjack/Card";
-import { Button } from "@/components/ui/button";
-import {
-  RenderCustomPixiElement,
-  useContainerSize,
-  waitFor,
-  websocketRequest,
-} from "@/lib/utils";
-import { GameState, MakaoResponse, ErrorResponse } from "./types";
 import { useAuth } from "@/components/AuthProvider";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { canPlayCard, getCardDisplayName, getSuitSymbol } from "./helpers";
+import { ImperativeSpawner, SpawnerHandle, useContainerSize, waitFor, websocketRequest } from "@/lib/utils";
+import { ApplicationRef, extend, Application as PixiApplication } from "@pixi/react";
+import { useQuery } from "@tanstack/react-query";
+import { Assets, Container, Container as PixiContainer, Point, Sprite, TextStyle, Texture } from "pixi.js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Card, { CardRef } from "../Blackjack/Card";
+import { CardKey, loadCardTextures } from "../shared";
 import { POSITIONS } from "./constants";
+import { canPlayCard, getCardDisplayName } from "./helpers";
+import { ErrorResponse, GameState, MakaoResponse } from "./types";
+
+extend({ Sprite, Container, Text });
 
 const stakes = [5, 10, 25, 50, 100, 500, 1000];
 const PLAYER_CARD_SPACING = 60;
@@ -76,15 +53,11 @@ const Makao = () => {
   return <Inner textures={textures} />;
 };
 
-const Inner = ({
-  textures,
-}: {
-  textures: { cards: Record<CardKey, Texture>; background: Texture };
-}) => {
-  const app = useRef<Application>();
+const Inner = ({ textures }: { textures: { cards: Record<CardKey, Texture>; background: Texture } }) => {
+  const app = useRef<ApplicationRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const gameContainer = useRef<PixiContainer>();
-  const ws = useRef<WebSocket>();
+  const gameContainer = useRef<PixiContainer>(null);
+  const ws = useRef<WebSocket>(null);
 
   const cards = useRef<{
     playerCards: CardRef[];
@@ -92,7 +65,7 @@ const Inner = ({
     tableCard: CardRef | null;
   }>({ playerCards: [], opponentCards: [], tableCard: null });
 
-  const root = useRef<ReactPixiRoot>();
+  const spawnerRef = useRef<SpawnerHandle>(null);
 
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
   const gameStateRef = useRef<GameState>(defaultGameState);
@@ -109,32 +82,16 @@ const Inner = ({
   }, [gameState]);
 
   const scale = useMemo(() => {
-    const calculatedScale = Math.min(
-      width / textures.background.width,
-      height / textures.background.height
-    );
-    console.log(
-      "Scale calculation - width:",
-      width,
-      "height:",
-      height,
-      "bg.width:",
-      textures.background.width,
-      "bg.height:",
-      textures.background.height,
-      "scale:",
-      calculatedScale
-    );
+    const calculatedScale = Math.min(width / textures.background.width, height / textures.background.height);
+    console.log("Scale calculation - width:", width, "height:", height, "bg.width:", textures.background.width, "bg.height:", textures.background.height, "scale:", calculatedScale);
     // Jeśli scale jest 0 lub NaN, zwróć wartość domyślną
     return calculatedScale > 0 ? calculatedScale : 0.5;
   }, [width, height, textures.background.width, textures.background.height]);
 
-  const dealCard = async (
-    cardKey: CardKey,
-    position: "player" | "opponent" | "table",
-    flip: boolean,
-    index?: number
-  ) => {
+  const dealCard = async (cardKey: CardKey, position: "player" | "opponent" | "table", flip: boolean, index?: number) => {
+    if (!spawnerRef.current) {
+      throw new Error("Spawner not ready");
+    }
     const bgWidth = textures.background.width * scale;
     const bgHeight = textures.background.height * scale;
 
@@ -145,7 +102,7 @@ const Inner = ({
     console.log("scale:", scale, "bgWidth:", bgWidth, "bgHeight:", bgHeight);
     console.log("Initial position:", deckX, deckY);
 
-    const ref = await RenderCustomPixiElement(gameContainer.current!, Card, {
+    const ref = await spawnerRef.current?.spawn(Card, {
       facing: "back",
       cardKey: cardKey,
       cardTextures: textures.cards,
@@ -158,17 +115,11 @@ const Inner = ({
     let targetY = 0;
 
     if (position === "player") {
-      const offset =
-        index !== undefined
-          ? index * PLAYER_CARD_SPACING * scale
-          : cards.current.playerCards.length * PLAYER_CARD_SPACING * scale;
+      const offset = index !== undefined ? index * PLAYER_CARD_SPACING * scale : cards.current.playerCards.length * PLAYER_CARD_SPACING * scale;
       targetX = POSITIONS.playerHand.xRatio * bgWidth + offset;
       targetY = POSITIONS.playerHand.yRatio * bgHeight;
     } else if (position === "opponent") {
-      const offset =
-        index !== undefined
-          ? index * OPPONENT_CARD_SPACING * scale
-          : cards.current.opponentCards.length * OPPONENT_CARD_SPACING * scale;
+      const offset = index !== undefined ? index * OPPONENT_CARD_SPACING * scale : cards.current.opponentCards.length * OPPONENT_CARD_SPACING * scale;
       targetX = POSITIONS.computerHand.xRatio * bgWidth + offset;
       targetY = POSITIONS.computerHand.yRatio * bgHeight;
     } else if (position === "table") {
@@ -191,19 +142,13 @@ const Inner = ({
       .flat()
       .forEach(async (card) => {
         if (!card) return;
-        await card.moveTo(
-          new Point(width / 2, -(card.spriteRef.current?.height || 0))
-        );
+        await card.moveTo(new Point(width / 2, -(card.spriteRef.current?.height || 0)));
         card.spriteRef.current?.destroy();
       });
     cards.current = { playerCards: [], opponentCards: [], tableCard: null };
   };
 
-  const dealInitialCards = async (
-    playerHand: CardKey[],
-    opponentCount: number,
-    tableCard: CardKey
-  ) => {
+  const dealInitialCards = async (playerHand: CardKey[], opponentCount: number, tableCard: CardKey) => {
     clearCards();
     setGameState((prev) => ({ ...prev, state: "dealing" }));
 
@@ -214,14 +159,7 @@ const Inner = ({
       attempts++;
     }
 
-    console.log(
-      "Starting card dealing with width:",
-      width,
-      "height:",
-      height,
-      "scale:",
-      scale
-    );
+    console.log("Starting card dealing with width:", width, "height:", height, "scale:", scale);
 
     await waitFor(300);
 
@@ -252,9 +190,7 @@ const Inner = ({
     if (response.playerHand) {
       const newHandKeys = response.playerHand;
       const oldHandRefs = [...cards.current.playerCards];
-      const nextPlayerCards: CardRef[] = new Array(newHandKeys.length).fill(
-        null
-      );
+      const nextPlayerCards: CardRef[] = new Array(newHandKeys.length).fill(null);
       const playedCards: CardRef[] = [];
 
       // Match existing cards
@@ -274,9 +210,7 @@ const Inner = ({
       let newTableCardRef = cards.current.tableCard;
       if (response.tableCard && response.tableCard !== currentState.tableCard) {
         // Check if played from our hand
-        const playedCardRef = playedCards.find(
-          (ref) => ref.cardKey === response.tableCard
-        );
+        const playedCardRef = playedCards.find((ref) => ref.cardKey === response.tableCard);
 
         if (playedCardRef) {
           // Animate played card to table
@@ -301,11 +235,7 @@ const Inner = ({
             cards.current.tableCard.moveTo(new Point(width / 2, height + 200));
             cards.current.tableCard.spriteRef.current?.destroy();
           }
-          const tableCardRef = await dealCard(
-            response.tableCard,
-            "table",
-            true
-          );
+          const tableCardRef = await dealCard(response.tableCard, "table", true);
           newTableCardRef = tableCardRef.current!;
         }
       }
@@ -339,21 +269,12 @@ const Inner = ({
       }
     }
 
-    if (
-      response.opponentHandCount !== undefined &&
-      response.opponentHandCount !== currentState.opponentHandCount
-    ) {
-      const diff =
-        response.opponentHandCount - cards.current.opponentCards.length;
+    if (response.opponentHandCount !== undefined && response.opponentHandCount !== currentState.opponentHandCount) {
+      const diff = response.opponentHandCount - cards.current.opponentCards.length;
 
       if (diff > 0) {
         for (let i = 0; i < diff; i++) {
-          const cardRef = await dealCard(
-            "BB",
-            "opponent",
-            false,
-            cards.current.opponentCards.length
-          );
+          const cardRef = await dealCard("BB", "opponent", false, cards.current.opponentCards.length);
           cards.current.opponentCards.push(cardRef.current!);
         }
       } else if (diff < 0) {
@@ -374,24 +295,12 @@ const Inner = ({
       console.log("User object from auth:", user);
 
       if (!response.playerHand || !response.tableCard) {
-        console.error(
-          "Missing required data - playerHand:",
-          response.playerHand,
-          "tableCard:",
-          response.tableCard
-        );
+        console.error("Missing required data - playerHand:", response.playerHand, "tableCard:", response.tableCard);
         return;
       }
 
       const isMyTurn = user?.id === response.currentPlayerId;
-      console.log(
-        "Is my turn:",
-        isMyTurn,
-        "My ID:",
-        user?.id,
-        "Current player ID:",
-        response.currentPlayerId
-      );
+      console.log("Is my turn:", isMyTurn, "My ID:", user?.id, "Current player ID:", response.currentPlayerId);
 
       const currentState = gameStateRef.current;
 
@@ -411,12 +320,7 @@ const Inner = ({
         isMyTurn,
       }));
 
-      if (
-        isMyTurn &&
-        response.playerToSkip !== null &&
-        response.playerToSkip !== undefined &&
-        response.playerToSkip === user?.id
-      ) {
+      if (isMyTurn && response.playerToSkip !== null && response.playerToSkip !== undefined && response.playerToSkip === user?.id) {
         const hasFour = response.playerHand!.some((card) => card[0] === "4");
 
         if (!hasFour) {
@@ -433,11 +337,7 @@ const Inner = ({
       }
 
       if (currentState.state === "waiting" || currentState.state === "idle") {
-        await dealInitialCards(
-          response.playerHand!,
-          response.opponentHandCount || 0,
-          response.tableCard!
-        );
+        await dealInitialCards(response.playerHand!, response.opponentHandCount || 0, response.tableCard!);
       } else {
         await updateCards(response);
       }
@@ -464,10 +364,7 @@ const Inner = ({
 
       toast({
         title: response.result === "WIN" ? "Zwycięstwo!" : "Porażka",
-        description:
-          response.result === "WIN"
-            ? `Wygrałeś ${response.moneyWon || 0} PLN!`
-            : "Może następnym razem...",
+        description: response.result === "WIN" ? `Wygrałeś ${response.moneyWon || 0} PLN!` : "Może następnym razem...",
         variant: response.result === "WIN" ? "default" : "destructive",
       });
     },
@@ -508,14 +405,8 @@ const Inner = ({
     );
   };
 
-  const playCard = (
-    cardIndex: number,
-    chosenSuit?: string,
-    chosenNumber?: string,
-    chosenValue?: string
-  ) => {
-    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn)
-      return;
+  const playCard = (cardIndex: number, chosenSuit?: string, chosenNumber?: string, chosenValue?: string) => {
+    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
     const payload: any = {
       command: "play_card",
       card_index: cardIndex,
@@ -527,8 +418,7 @@ const Inner = ({
   };
 
   const drawCard = () => {
-    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn)
-      return;
+    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
     ws.current.send(
       JSON.stringify({
         command: "draw_card",
@@ -537,8 +427,7 @@ const Inner = ({
   };
 
   const skipTurn = () => {
-    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn)
-      return;
+    if (!ws.current || gameState.state !== "playing" || !gameState.isMyTurn) return;
     ws.current.send(
       JSON.stringify({
         command: "skip_turn",
@@ -691,72 +580,56 @@ const Inner = ({
           }}
           ref={containerRef}
         >
-          <Stage
-            options={{ background: "rgb(31 44 69)" }}
-            onMount={(a) => {
-              app.current = a;
+          <PixiApplication
+            background="rgb(31 44 69)"
+            ref={(a) => {
+              if (a) app.current = a;
             }}
-            width={width}
-            height={height}
+            resizeTo={containerRef.current!}
           >
-            <Container
+            <pixiContainer
               ref={(ref) => {
                 if (!ref) return;
                 gameContainer.current = ref;
-                if (!root.current) {
-                  root.current = createRoot(ref);
-                }
               }}
               key="gameContainer"
               sortableChildren={true}
             >
               <>
-                <Sprite
-                  name="background"
+                <pixiSprite
+                  // name="background"
                   texture={textures.background}
                   scale={scale}
                 />
-                <Container
+                <ImperativeSpawner ref={spawnerRef} />
+                <pixiContainer
                   x={POSITIONS.deck.xRatio * textures.background.width * scale}
                   y={POSITIONS.deck.yRatio * textures.background.height * scale}
-                  name="deck"
+                  // name="deck"
                 >
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <Card
-                      key={i}
-                      cardKey="BB"
-                      facing={"back"}
-                      cardTextures={textures.cards}
-                      x={i * 2}
-                      y={-i * 2}
-                      scale={scale * CARD_SCALE}
-                    />
+                    <Card key={i} cardKey="BB" facing={"back"} cardTextures={textures.cards} x={i * 2} y={-i * 2} scale={scale * CARD_SCALE} />
                   ))}
-                </Container>
+                </pixiContainer>
 
                 {/* Opponent card count */}
                 {gameState.opponentHandCount > 0 && (
-                  <Text
+                  <pixiText
                     text={`Przeciwnik: ${gameState.opponentHandCount}`}
-                    x={
-                      POSITIONS.computerHand.xRatio *
-                      textures.background.width *
-                      scale
-                    }
-                    y={
-                      POSITIONS.computerHand.yRatio *
-                        textures.background.height *
-                        scale -
-                      90
-                    }
+                    x={POSITIONS.computerHand.xRatio * textures.background.width * scale}
+                    y={POSITIONS.computerHand.yRatio * textures.background.height * scale - 90}
                     anchor={0}
                     style={
                       new TextStyle({
-                        fill: "white",
-                        stroke: "black",
-                        strokeThickness: 4,
+                        fill: "#ffffff",
+                        stroke: {
+                          color: "#000000",
+                          width: 4,
+                        },
+                        // strokeThickness: 4,
+
                         fontSize: 32,
-                        fontFamily: "Lato",
+                        fontFamily: "Outfit",
                       })
                     }
                   />
@@ -764,149 +637,23 @@ const Inner = ({
 
                 {/* Current table card */}
                 {gameState.tableCard && (
-                  <Text
+                  <pixiText
                     text={`Stół: ${getCardDisplayName(gameState.tableCard)}`}
-                    x={
-                      POSITIONS.table.xRatio * textures.background.width * scale
-                    }
-                    y={
-                      POSITIONS.table.yRatio *
-                        textures.background.height *
-                        scale -
-                      150
-                    }
+                    x={POSITIONS.table.xRatio * textures.background.width * scale}
+                    y={POSITIONS.table.yRatio * textures.background.height * scale - 150}
                     anchor={0.5}
                     style={
                       new TextStyle({
-                        fill: "white",
-                        stroke: "black",
-                        strokeThickness: 5,
+                        fill: "#ffffff",
+                        // stroke: "#000000",
+                        stroke: {
+                          color: "#000000",
+                          width: 5,
+                        },
+
+                        // strokeThickness: 5,
                         fontSize: 50,
-                        fontFamily: "Lato",
-                      })
-                    }
-                  />
-                )}
-
-                {/* Active suit requirement */}
-                {gameState.currentSuit && (
-                  <Text
-                    text={`Wymagany kolor: ${getSuitSymbol(gameState.currentSuit)}`}
-                    x={
-                      POSITIONS.table.xRatio * textures.background.width * scale
-                    }
-                    y={
-                      (POSITIONS.table.yRatio * textures.background.height +
-                        200) *
-                        scale -
-                      120 * scale
-                    }
-                    anchor={0.5}
-                    style={
-                      new TextStyle({
-                        fill: "yellow",
-                        stroke: "black",
-                        strokeThickness: 5,
-                        fontSize: 45,
-                        fontFamily: "Lato",
-                      })
-                    }
-                  />
-                )}
-
-                {/* Required number (after Jack) */}
-                {gameState.requiredNumber && (
-                  <Text
-                    text={`Wymagana liczba: ${gameState.requiredNumber === "T" ? "10" : gameState.requiredNumber}`}
-                    x={
-                      POSITIONS.table.xRatio * textures.background.width * scale
-                    }
-                    y={
-                      (POSITIONS.table.yRatio * textures.background.height +
-                        200) *
-                      scale
-                    }
-                    anchor={0.5}
-                    style={
-                      new TextStyle({
-                        fill: "cyan",
-                        stroke: "black",
-                        strokeThickness: 5,
-                        fontSize: 45,
-                        fontFamily: "Lato",
-                      })
-                    }
-                  />
-                )}
-
-                {/* Pending draw count */}
-                {gameState.pendingDrawCount > 0 && (
-                  <Text
-                    text={`Do dobrania: ${gameState.pendingDrawCount} kart (${gameState.drawType})`}
-                    x={
-                      POSITIONS.table.xRatio * textures.background.width * scale
-                    }
-                    y={
-                      (POSITIONS.table.yRatio * textures.background.height +
-                        280) *
-                        scale -
-                      100 * scale
-                    }
-                    anchor={0.5}
-                    style={
-                      new TextStyle({
-                        fill: "orange",
-                        stroke: "black",
-                        strokeThickness: 5,
-                        fontSize: 40,
-                        fontFamily: "Lato",
-                      })
-                    }
-                  />
-                )}
-
-                {/* Pending skip turns */}
-                {gameState.pendingSkipTurns > 0 && (
-                  <Text
-                    text={`Pominiętych tur: ${gameState.pendingSkipTurns}`}
-                    x={
-                      POSITIONS.table.xRatio * textures.background.width * scale
-                    }
-                    y={
-                      (POSITIONS.table.yRatio * textures.background.height +
-                        280) *
-                        scale -
-                      800 * scale
-                    }
-                    anchor={0.5}
-                    style={
-                      new TextStyle({
-                        fill: "magenta",
-                        stroke: "black",
-                        strokeThickness: 5,
-                        fontSize: 40,
-                        fontFamily: "Lato",
-                      })
-                    }
-                  />
-                )}
-
-                {/* Turn indicator */}
-                {gameState.state === "playing" && (
-                  <Text
-                    text={
-                      gameState.isMyTurn ? "TWOJA TURA" : "TURA PRZECIWNIKA"
-                    }
-                    x={width / 2}
-                    y={50 * scale}
-                    anchor={0.5}
-                    style={
-                      new TextStyle({
-                        fill: gameState.isMyTurn ? "lime" : "red",
-                        stroke: "black",
-                        strokeThickness: 8,
-                        fontSize: 60,
-                        fontFamily: "Lato",
+                        fontFamily: "Outfit",
                       })
                     }
                   />
@@ -914,7 +661,7 @@ const Inner = ({
 
                 {/* Game result */}
                 {gameState.result && (
-                  <Text
+                  <pixiText
                     text={gameState.result}
                     x={width / 2}
                     y={height / 2}
@@ -922,22 +669,20 @@ const Inner = ({
                     scale={1}
                     style={
                       new TextStyle({
-                        fill: gameState.result.includes("WYGRANA")
-                          ? "lime"
-                          : "red",
-                        stroke: "black",
-                        strokeThickness: 10,
-                        fontSize: gameState.result.includes("WYGRANA")
-                          ? 250
-                          : 200,
-                        fontFamily: "Lato",
+                        fill: gameState.result.includes("WYGRANA") ? "lime" : "red",
+                        stroke: {
+                          color: "black",
+                          width: 10,
+                        },
+                        fontSize: gameState.result.includes("WYGRANA") ? 250 : 200,
+                        fontFamily: "Outfit",
                       })
                     }
                   />
                 )}
               </>
-            </Container>
-          </Stage>
+            </pixiContainer>
+          </PixiApplication>
 
           {/* User Interface */}
           <div
@@ -963,66 +708,40 @@ const Inner = ({
                     <p className="text-5xl text-center text-white">{balance}</p>
                   </div>
                   <div className="flex gap-3">
-                    <Button
-                      className="h-[80px] text-2xl text-white"
-                      onClick={decreaseStake}
-                      disabled={gameState.state !== "idle"}
-                    >
+                    <Button className="h-[80px] text-2xl text-white" onClick={decreaseStake} disabled={gameState.state !== "idle"}>
                       -
                     </Button>
                     <div className="h-full flex flex-col w-[100px]">
                       <p className="text-sm text-center text-white">Stawka</p>
                       <p className="text-5xl text-center text-white">{stake}</p>
                     </div>
-                    <Button
-                      className="h-[80px] text-2xl text-white"
-                      onClick={increaseStake}
-                      disabled={gameState.state !== "idle"}
-                    >
+                    <Button className="h-[80px] text-2xl text-white" onClick={increaseStake} disabled={gameState.state !== "idle"}>
                       +
                     </Button>
                   </div>
                 </div>
 
                 {gameState.state === "idle" && (
-                  <Button
-                    size="lg"
-                    className="h-[80px] text-4xl text-white"
-                    onClick={joinRoom}
-                  >
+                  <Button size="lg" className="h-[80px] text-4xl text-white" onClick={joinRoom}>
                     DOŁĄCZ DO GRY
                   </Button>
                 )}
 
                 {gameState.state === "waiting" && (
-                  <Button
-                    size="lg"
-                    className="h-[80px] text-3xl text-white"
-                    onClick={startGame}
-                  >
+                  <Button size="lg" className="h-[80px] text-3xl text-white" onClick={startGame}>
                     ROZPOCZNIJ GRĘ
                   </Button>
                 )}
 
-                {gameState.state === "playing" &&
-                  gameState.isMyTurn &&
-                  !gameState.pendingSkipTurns && (
-                    <Button
-                      size="lg"
-                      className="h-[80px] text-3xl text-white"
-                      onClick={drawCard}
-                    >
-                      DOBIERZ KARTĘ
-                    </Button>
-                  )}
+                {gameState.state === "playing" && gameState.isMyTurn && !gameState.pendingSkipTurns && (
+                  <Button size="lg" className="h-[80px] text-3xl text-white" onClick={drawCard}>
+                    DOBIERZ KARTĘ
+                  </Button>
+                )}
 
-                {gameState.state === "playing" &&
-                  gameState.isMyTurn &&
-                  gameState.playerToSkip === user?.id && (
-                    <div className="h-[80px] flex items-center justify-center text-white text-2xl">
-                      Automatycznie pomijanie tury...
-                    </div>
-                  )}
+                {gameState.state === "playing" && gameState.isMyTurn && gameState.playerToSkip === user?.id && (
+                  <div className="h-[80px] flex items-center justify-center text-white text-2xl">Automatycznie pomijanie tury...</div>
+                )}
 
                 {gameState.state === "end" && (
                   <Button
@@ -1039,43 +758,34 @@ const Inner = ({
               </div>
 
               {/* Player cards - clickable */}
-              {gameState.state === "playing" &&
-                gameState.playerHand.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-center text-white text-xl mb-2">
-                      Twoje karty{" "}
-                      {gameState.isMyTurn ? "(kliknij, aby zagrać):" : ""}
-                    </p>
-                    <div className="flex gap-2 justify-center flex-wrap">
-                      {gameState.playerHand.map((card, index) => {
-                        const canPlay =
-                          gameState.tableCard && gameState.isMyTurn
-                            ? canPlayCard(
-                                card,
-                                gameState.tableCard,
-                                gameState.currentSuit,
-                                gameState.requiredNumber,
-                                gameState.pendingDrawCount,
-                                gameState.drawType,
-                                gameState.pendingSkipTurns,
-                                gameState.playerToSkip,
-                                user?.id
-                              )
-                            : false;
-                        return (
-                          <Button
-                            key={index}
-                            onClick={() => handleCardClick(index)}
-                            disabled={!canPlay}
-                            className={`text-lg h-[60px] ${canPlay ? "bg-green-600 hover:bg-green-700" : "bg-gray-600"}`}
-                          >
-                            {getCardDisplayName(card)}
-                          </Button>
-                        );
-                      })}
-                    </div>
+              {gameState.state === "playing" && gameState.playerHand.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-center text-white text-xl mb-2">Twoje karty {gameState.isMyTurn ? "(kliknij, aby zagrać):" : ""}</p>
+                  <div className="flex gap-2 justify-center flex-wrap">
+                    {gameState.playerHand.map((card, index) => {
+                      const canPlay =
+                        gameState.tableCard && gameState.isMyTurn
+                          ? canPlayCard(
+                              card,
+                              gameState.tableCard,
+                              gameState.currentSuit,
+                              gameState.requiredNumber,
+                              gameState.pendingDrawCount,
+                              gameState.drawType,
+                              gameState.pendingSkipTurns,
+                              gameState.playerToSkip,
+                              user?.id
+                            )
+                          : false;
+                      return (
+                        <Button key={index} onClick={() => handleCardClick(index)} disabled={!canPlay} className={`text-lg h-[60px] ${canPlay ? "bg-green-600 hover:bg-green-700" : "bg-gray-600"}`}>
+                          {getCardDisplayName(card)}
+                        </Button>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1091,32 +801,18 @@ const Inner = ({
               }}
             >
               <div className="bg-black bg-opacity-90 p-6 rounded-lg border-4 border-white">
-                <p className="text-white text-2xl mb-4 text-center">
-                  Wybierz kolor:
-                </p>
+                <p className="text-white text-2xl mb-4 text-center">Wybierz kolor:</p>
                 <div className="flex gap-4">
-                  <Button
-                    className="text-4xl h-[80px] w-[80px] bg-red-600 hover:bg-red-700"
-                    onClick={() => handleSuitSelection("H")}
-                  >
+                  <Button className="text-4xl h-[80px] w-[80px] bg-red-600 hover:bg-red-700" onClick={() => handleSuitSelection("H")}>
                     ♥
                   </Button>
-                  <Button
-                    className="text-4xl h-[80px] w-[80px] bg-red-600 hover:bg-red-700"
-                    onClick={() => handleSuitSelection("D")}
-                  >
+                  <Button className="text-4xl h-[80px] w-[80px] bg-red-600 hover:bg-red-700" onClick={() => handleSuitSelection("D")}>
                     ♦
                   </Button>
-                  <Button
-                    className="text-4xl h-[80px] w-[80px] bg-gray-800 hover:bg-gray-900"
-                    onClick={() => handleSuitSelection("C")}
-                  >
+                  <Button className="text-4xl h-[80px] w-[80px] bg-gray-800 hover:bg-gray-900" onClick={() => handleSuitSelection("C")}>
                     ♣
                   </Button>
-                  <Button
-                    className="text-4xl h-[80px] w-[80px] bg-gray-800 hover:bg-gray-900"
-                    onClick={() => handleSuitSelection("S")}
-                  >
+                  <Button className="text-4xl h-[80px] w-[80px] bg-gray-800 hover:bg-gray-900" onClick={() => handleSuitSelection("S")}>
                     ♠
                   </Button>
                 </div>
@@ -1146,16 +842,10 @@ const Inner = ({
               }}
             >
               <div className="bg-black bg-opacity-90 p-6 rounded-lg border-4 border-white">
-                <p className="text-white text-2xl mb-4 text-center">
-                  Wybierz wymaganą liczbę (5-10):
-                </p>
+                <p className="text-white text-2xl mb-4 text-center">Wybierz wymaganą liczbę (5-10):</p>
                 <div className="flex gap-3">
                   {["5", "6", "7", "8", "9", "T"].map((num) => (
-                    <Button
-                      key={num}
-                      className="text-2xl h-[70px] w-[70px] bg-blue-600 hover:bg-blue-700"
-                      onClick={() => handleNumberSelection(num)}
-                    >
+                    <Button key={num} className="text-2xl h-[70px] w-[70px] bg-blue-600 hover:bg-blue-700" onClick={() => handleNumberSelection(num)}>
                       {num === "T" ? "10" : num}
                     </Button>
                   ))}

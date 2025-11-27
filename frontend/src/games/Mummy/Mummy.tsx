@@ -1,20 +1,17 @@
-import React, { useRef, useMemo, useEffect } from "react";
-import { Graphics as GraphicsComponent, Stage, Sprite as SpriteComponent } from "@pixi/react";
-import { Application, BlurFilter, DisplayObject, Container, Sprite, Texture, TickerCallback, UPDATE_PRIORITY, Graphics } from "pixi.js";
-import { useQuery } from "@tanstack/react-query";
-import { Assets } from "pixi.js";
-import { getTextures } from "./textures";
-import bg from "@/assets/mummy/tlo_transparent.png?url";
 import button from "@/assets/mummy/spin.png?url";
-import Game, { EngineRef } from "@/engine/SlotGame";
-import { debounce } from "lodash-es";
-import { useContainerSize, websocketRequest } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { FreeSpinsBonus, MummyBonus, MummyResponse } from "./types";
+import bg from "@/assets/mummy/tlo_transparent.png?url";
 import { useAuth } from "@/components/AuthProvider";
-import { lines } from "./lines";
-import { Navigate } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import Game, { EngineRef } from "@/engine/SlotGame";
+import { useContainerSize, websocketRequest } from "@/lib/utils";
+import { ApplicationRef, Application as PixiApplication } from "@pixi/react";
+import { useQuery } from "@tanstack/react-query";
+import { Application, Assets, Texture } from "pixi.js";
+import React, { useEffect, useRef } from "react";
 import CountUp from "react-countup";
+import { lines } from "./lines";
+import { getTextures } from "./textures";
+import { MummyBonus, MummyResponse } from "./types";
 
 const Mummy = () => {
   const { isLoading, data: textures } = useQuery({
@@ -50,7 +47,7 @@ const Inner = ({
     button: Texture;
   };
 }) => {
-  const app = useRef<Application>();
+  const app = useRef<ApplicationRef>(null);
   const ws = useRef<WebSocket | null>(null);
   const engineRef = useRef<EngineRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -63,6 +60,8 @@ const Inner = ({
   const [currentBonus, setCurrentBonus] = React.useState<MummyBonus | null>(null);
   const [bonusModalOpen, setBonusModalOpen] = React.useState(false);
   const [highlightedSymbols, setHighlightedSymbols] = React.useState<[number, number][]>([]);
+
+  // console.log(width, height);
 
   useEffect(() => {
     const socket = new WebSocket("ws://localhost:8081/ws/mummy");
@@ -126,14 +125,15 @@ const Inner = ({
 
       <div className="w-full h-screen flex flex-row justify-center items-center p-[50px]">
         <div className="shadow-2xl shadow-black" style={{ aspectRatio: ` ${textures.background.width} / ${textures.background.height}`, height: "100%", position: "relative" }} ref={containerRef}>
-          <Stage
-            options={{ background: "rgb(115 38 0)" }}
-            onMount={(a) => {
-              app.current = a;
-              // a.resizeTo = containerRef.current!;
+          <PixiApplication
+            background="rgb(115 38 0)"
+            // preference="webgpu"
+            ref={(a) => {
+              if (a) {
+                app.current = a;
+              }
             }}
-            width={width}
-            height={height}
+            resizeTo={containerRef.current!}
           >
             <Game
               ref={engineRef}
@@ -143,7 +143,7 @@ const Inner = ({
               highlightedSymbols={highlightedSymbols}
               scale={scale}
             />
-          </Stage>
+          </PixiApplication>
           {/* {balance !== null && (
             <div style={{ position: "absolute", top: "1rem", left: "1rem" }}>
               <p className="text-3xl" style={{ textShadow: "2px 2px 2px black" }}>

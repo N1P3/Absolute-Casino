@@ -40,9 +40,13 @@ public class HoldemGameService {
     public synchronized void joinTable(int tableId, Long userId, long buyIn) {
         HoldemTable table = createTableIfAbsent(tableId);
 
-        boolean alreadySeated = table.getSeats().stream()
-                .anyMatch(seat -> seat.isOccupied() && userId.equals(seat.getUserId()));
-        if (alreadySeated) {
+        Seat existingSeat = table.getSeats().stream()
+                .filter(seat -> seat.isOccupied() && userId.equals(seat.getUserId()))
+                .findFirst()
+                .orElse(null);
+
+        if (existingSeat != null) {
+            existingSeat.setSittingOut(false);
             return;
         }
 
@@ -175,6 +179,11 @@ public class HoldemGameService {
         Seat seat = findSeatByUserId(table, userId);
         PlayerHandState ps = hand.getPlayers().get(seat.getPosition());
         if (ps == null || ps.isFolded() || ps.isAllIn()) {
+            System.out.println("ACTION ERROR: User " + userId + " Seat " + seat.getPosition());
+            System.out.println("PS: " + ps);
+            if (ps != null) {
+                System.out.println("Folded: " + ps.isFolded() + " AllIn: " + ps.isAllIn());
+            }
             return "Gracz nie jest aktywny w rozdaniu";
         }
 

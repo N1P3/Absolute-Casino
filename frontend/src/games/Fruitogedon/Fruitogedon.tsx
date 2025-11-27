@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useEffect } from "react";
-import { Graphics as GraphicsComponent, Stage, Sprite as SpriteComponent } from "@pixi/react";
-import { Application, BlurFilter, DisplayObject, Container, Sprite, Texture, TickerCallback, UPDATE_PRIORITY, Graphics } from "pixi.js";
+import { ApplicationRef, Application as PixiApplication } from "@pixi/react";
+import { Application, BlurFilter, Container, Sprite, Texture, TickerCallback, UPDATE_PRIORITY, Graphics } from "pixi.js";
 import { useQuery } from "@tanstack/react-query";
 import { Assets } from "pixi.js";
 import { getTextures } from "./textures";
@@ -47,7 +47,7 @@ const Inner = ({
     background: Texture;
   };
 }) => {
-  const app = useRef<Application>();
+  const app = useRef<ApplicationRef>(null);
   const ws = useRef<WebSocket | null>(null);
   const engineRef = useRef<EngineRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -166,14 +166,13 @@ const Inner = ({
           ref={containerRef}
         >
           <div style={{ position: "absolute", top: 0, left: 0, width: width, height: height }}>
-            <Stage
-              options={{ background: "rgb(40 35 42)" }}
-              onMount={(a) => {
-                app.current = a;
-                // a.resizeTo = containerRef.current!;
+            <PixiApplication
+              background="rgb(40 35 42)"
+              // preference="webgpu"
+              ref={(a) => {
+                if (a) app.current = a;
               }}
-              width={width}
-              height={height}
+              resizeTo={containerRef.current || undefined}
             >
               <Game
                 ref={engineRef}
@@ -183,7 +182,7 @@ const Inner = ({
                 frozenSymbols={frozenSymbols}
                 scale={scale}
               />
-            </Stage>
+            </PixiApplication>
           </div>
           {/* {balance !== null && (
             <div style={{ position: "absolute", top: "1rem", left: "1rem" }}>

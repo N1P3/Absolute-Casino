@@ -1,10 +1,10 @@
-import { Container, Graphics, Text } from "@pixi/react";
+// import { Container, Graphics, Text } from "@pixi/react";
 import { Result } from "./types";
 import { TextStyle } from "pixi.js";
 
 export const HandCountDisplay = ({ value, current, position, scale }: { value: string; current: boolean; position: { x: number; y: number }; scale: number }) => {
   return (
-    <Text
+    <pixiText
       text={value}
       x={position.x * scale}
       y={position.y * scale - 250 * scale}
@@ -12,9 +12,9 @@ export const HandCountDisplay = ({ value, current, position, scale }: { value: s
       scale={1}
       style={
         new TextStyle({
-          fill: current ? "#fbbf24" : "white",
+          fill: current ? "#fbbf24" : "#ffffff",
           fontSize: 50,
-          fontFamily: "Lato",
+          fontFamily: "Outfit",
         })
       }
     />
@@ -23,23 +23,31 @@ export const HandCountDisplay = ({ value, current, position, scale }: { value: s
 
 export const HandValueDisplay = ({ value, result, position, scale }: { value: number; result: Result; position: { x: number; y: number }; scale: number }) => {
   return (
-    <Container anchor={0.5} x={position.x * scale - 100} y={position.y * scale - 50 * scale} zIndex={10}>
-      <Graphics anchor={0.5} draw={(g) => g.clear().beginFill(0x000000, 0.7).drawRoundedRect(0, 0, 200, 50, 10).endFill()} zIndex={10} />
-      <Text
+    <pixiContainer anchor={0.5} x={position.x * scale - 100} y={position.y * scale - 50 * scale} zIndex={10}>
+      <pixiGraphics
+        // anchor={0.5}
+
+        draw={(g) => g.clear().roundRect(0, 0, 200, 50, 10).fill({ color: 0x000000, alpha: 0.7 })}
+        zIndex={10}
+      />
+      <pixiText
         text={`${value} PLN`}
-        anchor={[0.5, 0]}
+        anchor={{
+          x: 0.5,
+          y: 0,
+        }}
         y={2}
         x={100}
         scale={1}
         zIndex={11}
         style={
           new TextStyle({
-            fill: result === Result.WIN || result === Result.BLACKJACK ? "#22c55e" : result === Result.LOST ? "#ef4444" : "white",
+            fill: result === Result.WIN || result === Result.BLACKJACK ? "#22c55e" : result === Result.LOST ? "#ef4444" : "#ffffff",
             fontSize: 40,
-            fontFamily: "Lato",
+            fontFamily: "Outfit",
           })
         }
       />
-    </Container>
+    </pixiContainer>
   );
 };
