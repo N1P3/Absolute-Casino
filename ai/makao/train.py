@@ -20,7 +20,7 @@ def train():
     # Train for 1,000,000 timesteps (approx 30-60 mins on CPU)
     # This is a good balance for a decent Makao bot.
     # For superhuman level, try 10,000,000+.
-    model.learn(total_timesteps=50000)
+    model.learn(total_timesteps=1000000)
 
     # Save Model
     model.save("makao_ppo_model")
