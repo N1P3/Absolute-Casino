@@ -1,0 +1,10 @@
+gymnasium==0.29.1
+stable-baselines3==2.2.1
+sb3-contrib==2.2.1
+shimmy>=0.2.1
+numpy==1.26.4
+torch>=2.0.0
+onnx>=1.15.0
+onnxruntime>=1.16.0
+tensorboard
+onnxscript

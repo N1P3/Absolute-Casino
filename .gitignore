@@ -1,5 +1,6 @@
 # Logs
 venv
+__pycache__
 logs
 *.log
 npm-debug.log*

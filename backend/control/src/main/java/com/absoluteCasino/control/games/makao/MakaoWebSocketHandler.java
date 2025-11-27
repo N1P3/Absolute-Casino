@@ -184,13 +184,22 @@ public class MakaoWebSocketHandler extends TextWebSocketHandler {
     private String handleJoinRoom(MakaoGameSession gameSession, JsonNode commandNode, ObjectMapper objectMapper) throws Exception {
         Integer userId = gameSession.getUserId();
         long bet = commandNode.has("bet") ? commandNode.get("bet").asLong() : 10L;
+        boolean playWithAi = commandNode.has("play_with_ai") && commandNode.get("play_with_ai").asBoolean();
 
         BalanceUpdateManager.BalanceUpdateResult sufficientFunds = balanceUpdateManager.sendBalanceUpdate(userId, bet * -1);
         if (!sufficientFunds.isSuffFunds()) {
             return "{\"Type\":\"ERROR\",\"Message\":\"Brak wystarczających środków\"}";
         }
 
-        MakaoGameRoom room = findOrCreateRoom(userId);
+        MakaoGameRoom room;
+        if (playWithAi) {
+             String roomId = "room_ai_" + UUID.randomUUID().toString();
+             room = new MakaoGameRoom(roomId);
+             gameRooms.put(roomId, room);
+        } else {
+             room = findOrCreateRoom(userId);
+        }
+        
         gameSession.setGameRoom(room);
 
         MakaoPlayer player = new MakaoPlayer(userId, "Player" + userId);
@@ -199,12 +208,23 @@ public class MakaoWebSocketHandler extends TextWebSocketHandler {
         if (room.addPlayer(player)) {
             MakaoGameResponse response = new MakaoGameResponse();
             response.setType("JOINED_ROOM");
-            response.setMessage("Dołączyłeś do pokoju. Oczekiwanie na drugiego gracza...");
+            response.setMessage("Dołączyłeś do pokoju.");
+
+            if (playWithAi) {
+                MakaoPlayer aiPlayer = new MakaoPlayer(-1, "AI Bot");
+                aiPlayer.setAi(true);
+                aiPlayer.setReady(true);
+                room.addPlayer(aiPlayer);
+                response.setMessage("Gra z AI rozpoczęta!");
+            } else {
+                 response.setMessage("Oczekiwanie na drugiego gracza...");
+            }
 
             if (room.isFull()) {
-                response.setMessage("Pokój pełny! Gra zaczyna się...");
+                if (!playWithAi) response.setMessage("Pokój pełny! Gra zaczyna się...");
 
                 for (MakaoPlayer p : room.getPlayers()) {
+                    if (p.isAi()) continue;
                     MakaoGameSession pSession = findGameSessionByUserId(p.getUserId());
                     if (pSession != null && pSession.getGameRoom() == null) {
                         pSession.setGameRoom(room);
@@ -213,6 +233,7 @@ public class MakaoWebSocketHandler extends TextWebSocketHandler {
                 }
 
                 broadcastToRoom(room, response, objectMapper);
+                return null;
             }
 
 
