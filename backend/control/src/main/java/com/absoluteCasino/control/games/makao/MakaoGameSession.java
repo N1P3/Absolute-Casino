@@ -21,85 +21,118 @@ public class MakaoGameSession extends GameSession {
     public void setGameRoom(MakaoGameRoom gameRoom) { this.gameRoom = gameRoom; }
     public MakaoGameRoom getGameRoom() { return gameRoom; }
 
-    public MakaoGameResponse playCard(Integer playerId, int cardIndex, String chosenSuit, String chosenNumber, String chosenValue) {
+    public MakaoGameResponse playCard(Integer playerId, java.util.List<Integer> cardIndices, String chosenSuit, String chosenNumber, String chosenValue) {
         if (gameRoom == null || !gameRoom.isGameActive()) return error("Gra nie jest aktywna");
         MakaoPlayer current = gameRoom.getCurrentPlayer();
         if (current == null || !current.getUserId().equals(playerId)) return error("Nie Twoja tura");
-        if (cardIndex < 0 || cardIndex >= current.getHand().size()) return error("Nieprawidłowy indeks karty");
+        
+        if (cardIndices == null || cardIndices.isEmpty()) return error("Nie wybrano kart");
 
-        String card = current.getHand().get(cardIndex);
+        // Validate indices
+        for (int idx : cardIndices) {
+            if (idx < 0 || idx >= current.getHand().size()) return error("Nieprawidłowy indeks karty");
+        }
+
+        // Get cards
+        java.util.List<String> cardsToPlay = new java.util.ArrayList<>();
+        for (int idx : cardIndices) {
+            cardsToPlay.add(current.getHand().get(idx));
+        }
+
+        // Validate same rank if multiple
+        if (cardsToPlay.size() > 1) {
+            char firstRank = cardsToPlay.get(0).charAt(0);
+            for (String c : cardsToPlay) {
+                if (c.charAt(0) != firstRank) return error("Karty muszą być tej samej wartości");
+            }
+        }
+
         MakaoGame game = gameRoom.getGame();
         String tableCard = game.getTableCard();
         String activeSuit = game.getCurrentSuit();
 
-        if (!game.canPlayCard(card, tableCard, activeSuit, playerId)) return error("Nie możesz zagrać tej karty");
-
-        char value = card.charAt(0);
-        char suit = card.charAt(1);
-
-        // Remove the card from hand
-        current.removeCard(card);
-
-        // Update table card
-        game.setTableCard(card);
-
-        // Handle card effects
-        if (value == 'A') {
-            if (chosenSuit == null || chosenSuit.isEmpty()) return error("Musisz wybrać kolor po Asie");
-            game.setCurrentSuit(chosenSuit);
-            game.setRequiredNumber(null);
-            game.setRequirementTurnsLeft(2); // Lasts for setter's next turn + 1 opponent turn
-        } else if (value == 'J') {
-            if (chosenNumber == null || chosenNumber.isEmpty()) return error("Musisz wybrać liczbę po Walecie");
-            char num = chosenNumber.charAt(0);
-            if (!(num >= '5' && num <= '9' || num == 'T')) return error("Nieprawidłowa liczba (5-10)");
-            game.setRequiredNumber(num);
-            game.setCurrentSuit(null);
-            game.setRequirementTurnsLeft(2); // Lasts for setter's next turn + 1 opponent turn
-        } else {
-            // Decrement requirement turns counter
-            if (game.getRequirementTurnsLeft() > 0) {
-                game.setRequirementTurnsLeft(game.getRequirementTurnsLeft() - 1);
-
-                // Clear requirements when counter reaches 0
-                if (game.getRequirementTurnsLeft() == 0) {
-                    game.setCurrentSuit(null);
-                    game.setRequiredNumber(null);
-                }
+        // Find a card that can be played on the table (bottom card)
+        String bottomCard = null;
+        int bottomCardIndex = -1;
+        for (int i = 0; i < cardsToPlay.size(); i++) {
+            if (game.canPlayCard(cardsToPlay.get(i), tableCard, activeSuit, playerId)) {
+                bottomCard = cardsToPlay.get(i);
+                bottomCardIndex = i;
+                break;
             }
         }
 
-        // Apply draw stacking logic and skip turn logic
-        if (value == '2') {
-            if (game.getPendingDrawCount() == 0) game.setDrawType("2");
-            game.setPendingDrawCount(game.getPendingDrawCount() + 2);
-        } else if (value == '3') {
-            if (game.getPendingDrawCount() == 0) game.setDrawType("3");
-            game.setPendingDrawCount(game.getPendingDrawCount() + 3);
-        } else if (value == '4') {
-            // When a 4 is played, get the next player who will need to skip
-            MakaoPlayer nextPlayer = gameRoom.getPlayers().get((gameRoom.getCurrentPlayerIndex() + 1) % gameRoom.getPlayers().size());
+        if (bottomCard == null) return error("Nie możesz zagrać tych kart");
 
-            if (game.getPlayerToSkip() != null && game.getPlayerToSkip().equals(playerId)) {
-                // This player was supposed to skip but countered with a 4
-                // Now pass the penalty back to the opponent with increased count
-                game.setPlayerToSkip(nextPlayer.getUserId());
-                game.setPendingSkipTurns(game.getPendingSkipTurns() + 1);
+        // Remove cards from hand (using sorted indices to avoid shifting issues)
+        java.util.List<Integer> sortedIndices = new java.util.ArrayList<>(cardIndices);
+        sortedIndices.sort(java.util.Collections.reverseOrder());
+        for (int idx : sortedIndices) {
+            current.getHand().remove((int)idx);
+        }
+
+        // Process cards: bottom card first, then others
+        java.util.List<String> orderedPlay = new java.util.ArrayList<>();
+        orderedPlay.add(bottomCard);
+        for (int i = 0; i < cardsToPlay.size(); i++) {
+            if (i != bottomCardIndex) {
+                orderedPlay.add(cardsToPlay.get(i));
+            }
+        }
+
+        for (String card : orderedPlay) {
+            game.setTableCard(card);
+            char value = card.charAt(0);
+            char suit = card.charAt(1);
+
+            // Handle card effects
+            if (value == 'A') {
+                if (chosenSuit == null || chosenSuit.isEmpty()) return error("Musisz wybrać kolor po Asie");
+                game.setCurrentSuit(chosenSuit);
+                game.setRequiredNumber(null);
+                game.setRequirementTurnsLeft(2); 
+            } else if (value == 'J') {
+                if (chosenNumber == null || chosenNumber.isEmpty()) return error("Musisz wybrać liczbę po Walecie");
+                char num = chosenNumber.charAt(0);
+                if (!(num >= '5' && num <= '9' || num == 'T')) return error("Nieprawidłowa liczba (5-10)");
+                game.setRequiredNumber(num);
+                game.setCurrentSuit(null);
+                game.setRequirementTurnsLeft(2); 
             } else {
-                // New 4 penalty - next player must skip
-                game.setPlayerToSkip(nextPlayer.getUserId());
-                game.setPendingSkipTurns(game.getPendingSkipTurns() + 1);
+                if (game.getRequirementTurnsLeft() > 0) {
+                    game.setRequirementTurnsLeft(game.getRequirementTurnsLeft() - 1);
+                    if (game.getRequirementTurnsLeft() == 0) {
+                        game.setCurrentSuit(null);
+                        game.setRequiredNumber(null);
+                    }
+                }
             }
-        } else if (value == 'K' && (suit == 'H' || suit == 'S')) {
-            if (game.getPendingDrawCount() == 0) game.setDrawType("K");
-            game.setPendingDrawCount(game.getPendingDrawCount() + 5);
-        } else {
-            // Playing a non-special card clears draw stack
-            if (game.getPendingDrawCount() > 0) {
-                game.setPendingDrawCount(0);
-                game.setDrawType(null);
+
+            // Apply draw stacking logic and skip turn logic
+            if (value == '2') {
+                if (game.getPendingDrawCount() == 0) game.setDrawType("2");
+                game.setPendingDrawCount(game.getPendingDrawCount() + 2);
+            } else if (value == '3') {
+                if (game.getPendingDrawCount() == 0) game.setDrawType("3");
+                game.setPendingDrawCount(game.getPendingDrawCount() + 3);
+            } else if (value == '4') {
+                MakaoPlayer nextPlayer = gameRoom.getPlayers().get((gameRoom.getCurrentPlayerIndex() + 1) % gameRoom.getPlayers().size());
+                if (game.getPlayerToSkip() != null && game.getPlayerToSkip().equals(playerId)) {
+                    game.setPlayerToSkip(nextPlayer.getUserId());
+                    game.setPendingSkipTurns(game.getPendingSkipTurns() + 1);
+                } else {
+                    game.setPlayerToSkip(nextPlayer.getUserId());
+                    game.setPendingSkipTurns(game.getPendingSkipTurns() + 1);
+                }
+            } else if (value == 'K' && (suit == 'H' || suit == 'S')) {
+                if (game.getPendingDrawCount() == 0) game.setDrawType("K");
+                game.setPendingDrawCount(game.getPendingDrawCount() + 5);
+            } else {
+                if (game.getPendingDrawCount() > 0) {
+                    game.setPendingDrawCount(0);
+                    game.setDrawType(null);
+                }
             }
-            // Note: skip turns are NOT cleared here - they must be paid turn by turn
         }
 
         // Win check

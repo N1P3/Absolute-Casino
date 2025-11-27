@@ -170,7 +170,14 @@ public class MakaoWebSocketHandler extends TextWebSocketHandler {
         } catch (Exception e) {
             log.severe("Error handling command: " + e.getMessage());
             e.printStackTrace();
-            session.sendMessage(new TextMessage("{\"Type\":\"ERROR\",\"Message\":\"Błąd serwera: " + e.getMessage() + "\"}"));
+            try {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("Type", "ERROR");
+                errorMap.put("Message", "Błąd serwera: " + e.getMessage());
+                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(errorMap)));
+            } catch (Exception jsonEx) {
+                log.severe("Error sending error message: " + jsonEx.getMessage());
+            }
         }
     }
 
@@ -241,11 +248,24 @@ public class MakaoWebSocketHandler extends TextWebSocketHandler {
     }
 
     private String handlePlayCard(MakaoGameSession gameSession, JsonNode commandNode, ObjectMapper objectMapper) throws Exception {
-        int cardIndex = commandNode.get("card_index").asInt();
+        List<Integer> cardIndices = new ArrayList<>();
+        if (commandNode.has("card_indices")) {
+            JsonNode indicesNode = commandNode.get("card_indices");
+            if (indicesNode.isArray()) {
+                for (JsonNode idx : indicesNode) {
+                    cardIndices.add(idx.asInt());
+                }
+            }
+        } else if (commandNode.has("card_index")) {
+            cardIndices.add(commandNode.get("card_index").asInt());
+        } else {
+            throw new IllegalArgumentException("Missing card_indices or card_index");
+        }
+
         String chosenSuit = commandNode.has("chosen_suit") ? commandNode.get("chosen_suit").asText() : null;
         String chosenNumber = commandNode.has("chosen_number") ? commandNode.get("chosen_number").asText() : null; // for Jack
         String chosenValue = commandNode.has("chosen_value") ? commandNode.get("chosen_value").asText() : null;   // for Joker mimic
-        MakaoGameResponse response = gameSession.playCard(gameSession.getUserId(), cardIndex, chosenSuit, chosenNumber, chosenValue);
+        MakaoGameResponse response = gameSession.playCard(gameSession.getUserId(), cardIndices, chosenSuit, chosenNumber, chosenValue);
         return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(response);
     }
 
