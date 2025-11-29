@@ -12,6 +12,7 @@ public class MakaoGameSession extends GameSession {
 
     private MakaoGameRoom gameRoom;
     private MakaoGame makaoGame;
+    private static final MakaoAI makaoAI = new MakaoAI();
 
     public MakaoGameSession(String sessionId, Integer userId) {
         super(sessionId, userId);
@@ -33,106 +34,29 @@ public class MakaoGameSession extends GameSession {
             if (idx < 0 || idx >= current.getHand().size()) return error("Nieprawidłowy indeks karty");
         }
 
-        // Get cards
+        // Get cards to play
         java.util.List<String> cardsToPlay = new java.util.ArrayList<>();
         for (int idx : cardIndices) {
             cardsToPlay.add(current.getHand().get(idx));
         }
 
-        // Validate same rank if multiple
-        if (cardsToPlay.size() > 1) {
-            char firstRank = cardsToPlay.get(0).charAt(0);
-            for (String c : cardsToPlay) {
-                if (c.charAt(0) != firstRank) return error("Karty muszą być tej samej wartości");
-            }
-        }
-
         MakaoGame game = gameRoom.getGame();
-        String tableCard = game.getTableCard();
-        String activeSuit = game.getCurrentSuit();
-
-        // Find a card that can be played on the table (bottom card)
-        String bottomCard = null;
-        int bottomCardIndex = -1;
-        for (int i = 0; i < cardsToPlay.size(); i++) {
-            if (game.canPlayCard(cardsToPlay.get(i), tableCard, activeSuit, playerId)) {
-                bottomCard = cardsToPlay.get(i);
-                bottomCardIndex = i;
-                break;
-            }
+        
+        // Get next player ID for 4-skip logic
+        MakaoPlayer nextPlayer = gameRoom.getPlayers().get((gameRoom.getCurrentPlayerIndex() + 1) % gameRoom.getPlayers().size());
+        
+        // Execute play in game engine
+        MakaoGame.PlayResult result = game.playCards(cardsToPlay, chosenSuit, chosenNumber, playerId, nextPlayer.getUserId());
+        
+        if (!result.success) {
+            return error(result.errorMessage);
         }
-
-        if (bottomCard == null) return error("Nie możesz zagrać tych kart");
 
         // Remove cards from hand (using sorted indices to avoid shifting issues)
         java.util.List<Integer> sortedIndices = new java.util.ArrayList<>(cardIndices);
         sortedIndices.sort(java.util.Collections.reverseOrder());
         for (int idx : sortedIndices) {
             current.getHand().remove((int)idx);
-        }
-
-        // Process cards: bottom card first, then others
-        java.util.List<String> orderedPlay = new java.util.ArrayList<>();
-        orderedPlay.add(bottomCard);
-        for (int i = 0; i < cardsToPlay.size(); i++) {
-            if (i != bottomCardIndex) {
-                orderedPlay.add(cardsToPlay.get(i));
-            }
-        }
-
-        for (String card : orderedPlay) {
-            game.setTableCard(card);
-            char value = card.charAt(0);
-            char suit = card.charAt(1);
-
-            // Handle card effects
-            if (value == 'A') {
-                if (chosenSuit == null || chosenSuit.isEmpty()) return error("Musisz wybrać kolor po Asie");
-                game.setCurrentSuit(chosenSuit);
-                game.setRequiredNumber(null);
-                game.setRequirementTurnsLeft(2); 
-            } else if (value == 'J') {
-                if (chosenNumber == null || chosenNumber.isEmpty()) return error("Musisz wybrać liczbę po Walecie");
-                char num = chosenNumber.charAt(0);
-                if (!(num >= '5' && num <= '9' || num == 'T')) return error("Nieprawidłowa liczba (5-10)");
-                game.setRequiredNumber(num);
-                game.setCurrentSuit(null);
-                game.setRequirementTurnsLeft(2); 
-            } else {
-                if (game.getRequirementTurnsLeft() > 0) {
-                    game.setRequirementTurnsLeft(game.getRequirementTurnsLeft() - 1);
-                    if (game.getRequirementTurnsLeft() == 0) {
-                        game.setCurrentSuit(null);
-                        game.setRequiredNumber(null);
-                    }
-                }
-            }
-
-            // Apply draw stacking logic and skip turn logic
-            if (value == '2') {
-                if (game.getPendingDrawCount() == 0) game.setDrawType("2");
-                game.setPendingDrawCount(game.getPendingDrawCount() + 2);
-            } else if (value == '3') {
-                if (game.getPendingDrawCount() == 0) game.setDrawType("3");
-                game.setPendingDrawCount(game.getPendingDrawCount() + 3);
-            } else if (value == '4') {
-                MakaoPlayer nextPlayer = gameRoom.getPlayers().get((gameRoom.getCurrentPlayerIndex() + 1) % gameRoom.getPlayers().size());
-                if (game.getPlayerToSkip() != null && game.getPlayerToSkip().equals(playerId)) {
-                    game.setPlayerToSkip(nextPlayer.getUserId());
-                    game.setPendingSkipTurns(game.getPendingSkipTurns() + 1);
-                } else {
-                    game.setPlayerToSkip(nextPlayer.getUserId());
-                    game.setPendingSkipTurns(game.getPendingSkipTurns() + 1);
-                }
-            } else if (value == 'K' && (suit == 'H' || suit == 'S')) {
-                if (game.getPendingDrawCount() == 0) game.setDrawType("K");
-                game.setPendingDrawCount(game.getPendingDrawCount() + 5);
-            } else {
-                if (game.getPendingDrawCount() > 0) {
-                    game.setPendingDrawCount(0);
-                    game.setDrawType(null);
-                }
-            }
         }
 
         // Win check
@@ -143,6 +67,7 @@ public class MakaoGameSession extends GameSession {
         }
 
         gameRoom.getNextPlayer();
+        processAiTurns();
         return state();
     }
 
@@ -152,24 +77,16 @@ public class MakaoGameSession extends GameSession {
         if (current == null || !current.getUserId().equals(playerId)) return error("Nie Twoja tura");
         MakaoGame game = gameRoom.getGame();
 
-        // Decrement requirement turns when drawing
-        if (game.getRequirementTurnsLeft() > 0) {
-            game.setRequirementTurnsLeft(game.getRequirementTurnsLeft() - 1);
-
-            // Clear requirements when counter reaches 0
-            if (game.getRequirementTurnsLeft() == 0) {
-                game.setCurrentSuit(null);
-                game.setRequiredNumber(null);
-            }
+        // Execute draw in game engine (handles requirement decrement internally)
+        int toDraw = game.drawCards();
+        
+        // Draw cards
+        for (int i = 0; i < toDraw; i++) {
+            current.addCard(gameRoom.drawCard());
         }
-
-        int toDraw = game.getPendingDrawCount() > 0 ? game.getPendingDrawCount() : 1;
-        for (int i = 0; i < toDraw; i++) current.addCard(gameRoom.drawCard());
-        if (game.getPendingDrawCount() > 0) {
-            game.setPendingDrawCount(0);
-            game.setDrawType(null);
-        }
+        
         gameRoom.getNextPlayer();
+        processAiTurns();
         return state();
     }
 
@@ -179,34 +96,15 @@ public class MakaoGameSession extends GameSession {
         if (current == null || !current.getUserId().equals(playerId)) return error("Nie Twoja tura");
         MakaoGame game = gameRoom.getGame();
 
-        // Can only skip if this player is marked to skip
-        if (game.getPlayerToSkip() == null || !game.getPlayerToSkip().equals(playerId)) {
-            return error("Nie musisz pomijać tury");
+        // Execute skip in game engine
+        MakaoGame.PlayResult result = game.skipTurn(playerId);
+        
+        if (!result.success) {
+            return error(result.errorMessage);
         }
 
-        // Decrement requirement turns when skipping
-        if (game.getRequirementTurnsLeft() > 0) {
-            game.setRequirementTurnsLeft(game.getRequirementTurnsLeft() - 1);
-
-            // Clear requirements when counter reaches 0
-            if (game.getRequirementTurnsLeft() == 0) {
-                game.setCurrentSuit(null);
-                game.setRequiredNumber(null);
-            }
-        }
-
-        // Decrement pending skip turns by 1
-        game.setPendingSkipTurns(game.getPendingSkipTurns() - 1);
-
-        // If no more skips remaining, clear the penalty
-        if (game.getPendingSkipTurns() <= 0) {
-            game.setPlayerToSkip(null);
-            game.setPendingSkipTurns(0);
-        }
-
-        // Move to next player - they can play normally
         gameRoom.getNextPlayer();
-
+        processAiTurns();
         return state();
     }
 
@@ -267,5 +165,62 @@ public class MakaoGameSession extends GameSession {
         r.setType("ERROR");
         r.setMessage(msg);
         return r;
+    }
+
+    private void processAiTurns() {
+        if (gameRoom == null || !gameRoom.isGameActive()) return;
+        
+        MakaoPlayer current = gameRoom.getCurrentPlayer();
+        int safetyCounter = 0;
+        while (current != null && current.isAi() && gameRoom.isGameActive() && safetyCounter < 10) {
+            safetyCounter++;
+            
+            MakaoPlayer opponent = gameRoom.getPlayers().stream()
+                .filter(p -> !p.isAi())
+                .findFirst()
+                .orElse(null);
+
+            MakaoAI.AIAction action = makaoAI.predictMove(gameRoom.getGame(), current, opponent);
+            
+            if (action == null) {
+                System.err.println("AI failed to predict move");
+                break;
+            }
+            
+            MakaoGame game = gameRoom.getGame();
+            
+            if ("PLAY".equals(action.type)) {
+                int nextIdx = (gameRoom.getCurrentPlayerIndex() + 1) % gameRoom.getPlayers().size();
+                MakaoPlayer nextPlayer = gameRoom.getPlayers().get(nextIdx);
+                
+                java.util.List<String> cards = new java.util.ArrayList<>();
+                cards.add(action.card);
+                
+                MakaoGame.PlayResult result = game.playCards(cards, action.chosenSuit, action.chosenNumber, current.getUserId(), nextPlayer.getUserId());
+                
+                if (result.success) {
+                    current.removeCard(action.card);
+                    if (current.getHand().isEmpty()) {
+                        gameRoom.setGameActive(false);
+                        gameRoom.setWinner(current);
+                        return;
+                    }
+                    gameRoom.getNextPlayer();
+                } else {
+                    int toDraw = game.drawCards();
+                    for(int i=0; i<toDraw; i++) current.addCard(gameRoom.drawCard());
+                    gameRoom.getNextPlayer();
+                }
+            } else if ("DRAW".equals(action.type)) {
+                int toDraw = game.drawCards();
+                for(int i=0; i<toDraw; i++) current.addCard(gameRoom.drawCard());
+                gameRoom.getNextPlayer();
+            } else if ("SKIP".equals(action.type)) {
+                game.skipTurn(current.getUserId());
+                gameRoom.getNextPlayer();
+            }
+            
+            current = gameRoom.getCurrentPlayer();
+        }
     }
 }

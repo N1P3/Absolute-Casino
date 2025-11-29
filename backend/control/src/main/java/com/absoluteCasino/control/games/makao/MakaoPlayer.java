@@ -14,6 +14,7 @@ public class MakaoPlayer {
     private List<String> hand = new ArrayList<>();
     private Long bet = 0L;
     private boolean isReady = false;
+    private boolean isAi = false;
 
     public MakaoPlayer(Integer userId, String userName) {
         this.userId = userId;
