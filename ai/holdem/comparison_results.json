@@ -1,0 +1,45 @@
+{
+  "matchups": {},
+  "overall_stats": {
+    "best_model#0": {
+      "total_wins": 26,
+      "total_games": 100,
+      "overall_win_rate": 0.26,
+      "total_profit": 1.836,
+      "avg_profit_per_game": 0.01836,
+      "draws": 0,
+      "action_counts": {
+        "FOLD": 49,
+        "CALL": 310,
+        "RAISE": 5
+      }
+    },
+    "best_model_rl_big#1": {
+      "total_wins": 74,
+      "total_games": 100,
+      "overall_win_rate": 0.74,
+      "total_profit": -0.33600000000000013,
+      "avg_profit_per_game": -0.0033600000000000014,
+      "draws": 0,
+      "action_counts": {
+        "RAISE": 233,
+        "CALL": 2
+      }
+    }
+  },
+  "overrides": {
+    "best_model#0": {},
+    "best_model_rl_big#1": {}
+  },
+  "action_counts": {
+    "best_model#0": {
+      "FOLD": 49,
+      "CALL": 310,
+      "RAISE": 5
+    },
+    "best_model_rl_big#1": {
+      "RAISE": 233,
+      "CALL": 2
+    }
+  }
+}

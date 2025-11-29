@@ -1,0 +1,17 @@
+# Core dependencies
+numpy>=1.24.0
+h5py>=3.8.0
+tqdm>=4.65.0
+toml>=0.10.2
+rtoml>=0.9.0  # Fast Rust-based TOML parser (10-100x faster than toml)
+
+# Deep Learning
+torch>=2.0.0
+tensorboard>=2.13.0
+
+# Poker parsing
+# pokerkit  # Will be installed separately if needed
+
+# Optional but recommended
+pandas>=2.0.0
+matplotlib>=3.7.0

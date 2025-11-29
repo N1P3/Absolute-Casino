@@ -1,0 +1,37 @@
+[package]
+name = "poker_preprocess"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "poker_preprocess"
+path = "src/lib.rs"
+
+[[bin]]
+name = "preprocess_acpc"
+path = "src/bin/preprocess_acpc.rs"
+
+[[bin]]
+name = "preprocess_handhq"
+path = "src/bin/preprocess_handhq.rs"
+
+[[bin]]
+name = "preprocess_pluribus"
+path = "src/bin/preprocess_pluribus.rs"
+
+[dependencies]
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+ndarray = "0.15"
+ndarray-npy = "0.8"
+walkdir = "2.4"
+indicatif = "0.17"
+anyhow = "1.0"
+zip = "0.6"
+clap = { version = "4.3", features = ["derive"] }
+rayon = "1.8"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

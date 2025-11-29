@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.ipynb_checkpoints/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# PyTorch
+*.pt
+*.pth
+*.ckpt
+!best_model.pt
+!checkpoint.pt
+
+# Checkpoints (keep structure but ignore most files)
+checkpoints/
+checkpoints_*/
+!checkpoints/config.json
+!checkpoints_*/config.json
+
+# TensorBoard
+runs/
+runs_*/
+
+# Data files (large datasets)
+*.h5
+*.hdf5
+*.npz
+*.csv
+dataset/
+*.phhs
+
+
+# Rust build artifacts
+preprocess_rust/target/
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
+# SSH keys
+*.pub
+runpod
+runpod.pub
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Test outputs
+example_*.json
+demo_*.py
+test_*.py
