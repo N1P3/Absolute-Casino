@@ -1,6 +1,9 @@
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 from pokerkit import Automation, NoLimitTexasHoldem
+import eval7
+import traceback
+
 
 class PokerKitEnvironment:
     """
@@ -53,6 +56,10 @@ class PokerKitEnvironment:
             Automation.CHIPS_PUSHING,
             Automation.CHIPS_PULLING,
         )
+        
+        # Equity evaluator
+        self.evaluator = EquityEvaluator()
+
         
     def reset(self) -> Dict:
         """
@@ -147,6 +154,9 @@ class PokerKitEnvironment:
             'current_bet': current_bet,
             'to_call': to_call,
             'player_idx': current_player,
+            # Equity features
+            'equity': self._calculate_equity(hole_cards_str, board_cards_str),
+            'pot_odds': to_call / (pot + to_call) if (pot + to_call) > 0 else 0,
             # Include valid actions for MCTS expansion without needing the full PokerKit state
             'valid_actions': self.get_valid_actions(),
             'done': not self.state.status,  # status=True means hand is active
@@ -339,3 +349,94 @@ class PokerKitEnvironment:
         ]
         
         return rewards
+
+    def _calculate_equity(self, hole_cards: List[str], board_cards: List[str]) -> float:
+        """Calculate equity against random hand."""
+        if not hole_cards:
+            return 0.5
+        return self.evaluator.calculate_equity(hole_cards, board_cards)
+
+
+class EquityEvaluator:
+    """Helper for eval7 equity calculation."""
+    
+    def __init__(self):
+        pass
+        
+    def _clean_card(self, card_str: str) -> str:
+        """Clean card string (e.g. '[Ad]' -> 'Ad', '10s' -> 'Ts', 'td' -> 'Td')."""
+        c = card_str.replace('[', '').replace(']', '').strip()
+        
+        # Handle 10
+        if c.startswith('10'):
+            return 'T' + c[2:].lower()
+            
+        # Handle other ranks: Capitalize rank, lowercase suit
+        if len(c) >= 2:
+            return c[0].upper() + c[1:].lower()
+            
+        return c
+
+    def calculate_equity(self, hole_cards: List[str], board_cards: List[str], iterations: int = 50) -> float:
+        """
+        Calculate equity of hole_cards vs random hand given board.
+        
+        Args:
+            hole_cards: List of strings e.g. ['As', 'Kd']
+            board_cards: List of strings e.g. ['7h', '8d', '9s']
+            iterations: Monte Carlo iterations
+            
+        Returns:
+            equity: float 0.0-1.0
+        """
+        try:
+            # Convert to eval7 cards
+            # print(f"DEBUG: Raw input - hole_cards={hole_cards}, board_cards={board_cards}")
+            # Convert to eval7 cards
+            cleaned_hole = [self._clean_card(c) for c in hole_cards]
+            cleaned_board = [self._clean_card(c) for c in board_cards]
+            
+            hero_hand = [eval7.Card(c) for c in cleaned_hole]
+            board = [eval7.Card(c) for c in cleaned_board]
+            
+            if len(hero_hand) != 2:
+                return 0.5
+                
+            # Optimization: Create a list of remaining cards once
+            full_deck = eval7.Deck()
+            for c in hero_hand + board:
+                full_deck.cards.remove(c)
+            remaining_cards = full_deck.cards # List of Card objects
+            
+            wins = 0
+            count = 0
+            
+            for _ in range(iterations):
+                # Shuffle remaining cards
+                np.random.shuffle(remaining_cards)
+                
+                # Deal opponent hand (2 cards)
+                villain_hand = remaining_cards[:2]
+                
+                # Deal runout (5 - len(board))
+                cards_needed = 5 - len(board)
+                draw = remaining_cards[2:2+cards_needed]
+                
+                full_board = board + draw
+                
+                hero_val = eval7.evaluate(hero_hand + full_board)
+                villain_val = eval7.evaluate(villain_hand + full_board)
+                
+                if hero_val > villain_val:
+                    wins += 1
+                elif hero_val == villain_val:
+                    wins += 0.5
+                count += 1
+            
+            return wins / count
+            
+        except Exception as e:
+            # Fallback on error
+            print(f"ERROR in equity calculation: {e}")
+            traceback.print_exc()
+            return 0.5

@@ -91,3 +91,5 @@ runpod.pub
 example_*.json
 demo_*.py
 test_*.py
+
+!test_predictions.py

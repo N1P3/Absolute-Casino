@@ -122,7 +122,7 @@ Model creation is centralized via `model.create_model()`. Checkpoint config JSON
 RL fine-tuning (self-play / REINFORCE style) example:
 
 ```powershell
-python train_rl_pokerkit.py --checkpoint checkpoints/best_model.pt --episodes 50000 --device cuda
+python train_rl_pokerkit.py --checkpoint checkpoints_big_2/best_model.pt --episodes 50000 --device cuda
 ```
 
 - RL training uses same architecture, adds policy gradient updates and environment simulation.

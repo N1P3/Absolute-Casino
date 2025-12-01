@@ -1,11 +1,9 @@
-"""
-Poker Transformer Model
-
-Transformer-based model  poker decisions with:
-- Static state encoding (hole cards, stacks, pot)
-- Action sequence attention (betting history)
-- Multi-task prediction (action type + raise amount)
-"""
+# Poker Transformer Model
+#
+# Transformer-based model for poker decisions with:
+# - Static state encoding (hole cards, stacks, pot)
+# - Action sequence attention (betting history)
+# - Multi-task prediction (action type + raise amount)
 
 import torch
 import torch.nn as nn
@@ -17,20 +15,17 @@ UNKNOWN_CARD = 52
 
 
 class PluribusPokerTransformer(nn.Module):
-    """
-    Transformer-based poker AI.
-    
-    Architecture:
-    1. Static state encoder: MLP for hole cards, stacks, pot
-    2. Action sequence encoder: Transformer for betting history
-    3. Fusion layer: Combine static + sequential features
-    4. Multi-task heads: Action classification + raise amount regression
-    """
+    # Transformer-based poker AI.
+    # Architecture:
+    # 1. Static state encoder: MLP for hole cards, stacks, pot
+    # 2. Action sequence encoder: Transformer for betting history
+    # 3. Fusion layer: Combine static + sequential features
+    # 4. Multi-task heads: Action classification + raise amount regression
     
     def __init__(
         self,
         # Input dimensions
-        static_state_dim=18,  # Hole cards (2 IDs) + board (5 IDs) + stacks (6) + pot (1) + street (4) = 18 features
+        static_state_dim=20,  # Hole cards (2) + board (5) + stacks (6) + pot (1) + street (4) + equity (1) + odds (1) = 20
         action_seq_length=20,
         action_seq_dim=10,  # Player (6) + action type (3) + amount (1)
         
@@ -64,9 +59,9 @@ class PluribusPokerTransformer(nn.Module):
         self.register_buffer('card_position_indices', torch.arange(7))
         self.register_buffer('card_stage_indices', torch.tensor([0, 0, 1, 1, 1, 2, 3]))
         
-        # Scalar features (stacks, pot, street) become their own token
+        # Scalar features (stacks, pot, street, equity, odds)
         self.scalar_encoder = nn.Sequential(
-            nn.Linear(11, d_model),
+            nn.Linear(13, d_model),  # 11 original + 2 new = 13 scalar features
             nn.GELU(),
             nn.Dropout(dropout),
             nn.LayerNorm(d_model),
@@ -117,9 +112,10 @@ class PluribusPokerTransformer(nn.Module):
             norm=nn.LayerNorm(d_model),
         )
         
-        # Fusion layer (combine static + sequential)
+        # Fusion layer (combine static + sequential + skip features)
+        # Skip features: Equity (1) + Pot Odds (1) + Hole Cards (32) = 34
         self.fusion = nn.Sequential(
-            nn.Linear(d_model * 2, d_model),
+            nn.Linear(d_model * 2 + 34, d_model),
             nn.LayerNorm(d_model),
             nn.GELU(),
             nn.Dropout(dropout),
@@ -145,25 +141,21 @@ class PluribusPokerTransformer(nn.Module):
         self._init_weights()
     
     def _init_weights(self):
-        """Initialize weights with Xavier uniform."""
+        # Initialize weights with Xavier uniform.
         for p in self.parameters():
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
     
     def forward(self, batch, return_attention=False):
-        """
-        Forward pass.
-        
-        Args:
-            batch: Dictionary containing:
-                - static_state: [B, 18] - hole card IDs (2), board card IDs (5), stacks (6), pot (1), street (4)
-                - action_sequence: [B, 20, 10] - previous actions
-            return_attention: If True, return intermediate representations
-        
-        Returns:
-            action_logits: [B, 3] - fold/call/raise probabilities
-            value: [B, 1] - raise amount prediction
-        """
+        # Forward pass.
+        # Args:
+        #     batch: Dictionary containing:
+        #         - static_state: [B, 18] - hole card IDs (2), board card IDs (5), stacks (6), pot (1), street (4)
+        #         - action_sequence: [B, 20, 10] - previous actions
+        #     return_attention: If True, return intermediate representations
+        # Returns:
+        #     action_logits: [B, 3] - fold/call/raise probabilities
+        #     value: [B, 1] - raise amount prediction
         static_state = batch['static_state']  # [B, 18] (IDs + other features)
         action_sequence = batch['action_sequence']  # [B, 20, 10]
         
@@ -171,7 +163,7 @@ class PluribusPokerTransformer(nn.Module):
         
         # Split static_state into card IDs and other scalar features
         ids = static_state[:, :7].long()  # 2 hole card IDs + 5 board IDs
-        other_features = static_state[:, 7:]  # [B, 11]
+        other_features = static_state[:, 7:]  # [B, 13]
 
         # Split IDs into rank and suit (card ID = rank*4 + suit)
         rank_ids = torch.div(ids, 4, rounding_mode='floor')
@@ -234,8 +226,24 @@ class PluribusPokerTransformer(nn.Module):
         )  # [B, 21, d_model]
         action_pooled = action_features[:, 0]  # CLS summary
         
-        # Fuse static and sequential features
-        combined = torch.cat([static_features, action_pooled], dim=-1)  # [B, d_model*2]
+        # Fuse static and sequential features + SKIP CONNECTION for Equity/Odds + HOLE CARDS
+        # Equity is at index 11 of other_features (which corresponds to index 18 of static_state)
+        # Pot Odds is at index 12 of other_features (index 19 of static_state)
+        equity_odds = other_features[:, 11:13] * 10.0  # [B, 2] SIGNAL BOOST
+        
+        # Hole cards skip connection (flattened)
+        # card_emb is [B, 7, 16]. Hole cards are at indices 0, 1.
+        # We need to ensure we use the masked version if possible, but card_emb is masked at line 188.
+        # Wait, line 188 masks card_emb. So we can just take it from there.
+        # But we need to make sure we access the tensor *after* masking.
+        # Let's re-extract or reuse. card_emb is local variable.
+        # We need to make sure we are using the card_emb *after* line 188.
+        # Since I can't easily reference the local variable from here without seeing the whole function,
+        # I will re-apply the mask to be safe or assume card_emb is available if I am editing the end of forward.
+        # Actually, I am editing the end of forward. card_emb is available.
+        hole_cards_flat = card_emb[:, :2, :].reshape(batch_size, -1) # [B, 32]
+        
+        combined = torch.cat([static_features, action_pooled, equity_odds, hole_cards_flat], dim=-1)  # [B, d_model*2 + 34]
         fused = self.fusion(combined)  # [B, d_model]
         
         # Multi-task outputs
@@ -252,7 +260,7 @@ class PluribusPokerTransformer(nn.Module):
         return action_logits, value
 
     def reset_value_head(self):
-        """Reinitialize critic head for RL fine-tuning."""
+        # Reinitialize critic head for RL fine-tuning.
         for layer in self.value_head:
             if isinstance(layer, nn.Linear):
                 nn.init.xavier_uniform_(layer.weight)
@@ -261,7 +269,7 @@ class PluribusPokerTransformer(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    """Sinusoidal positional encoding for action sequences."""
+    # Sinusoidal positional encoding for action sequences.
     
     def __init__(self, d_model, max_len=100):
         super().__init__()
@@ -281,10 +289,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe_tensor', pe)
     
     def forward(self, x):
-        """
-        Args:
-            x: [B, seq_len, d_model]
-        """
+        # Args: x: [B, seq_len, d_model]
         # Add sinusoidal positional encoding
         # Retrieve the buffer (named either 'pe' or 'pe_tensor') safely to avoid type‑checking issues
         pe_buf = getattr(self, 'pe', None) or getattr(self, 'pe_tensor', None)
@@ -294,26 +299,21 @@ class PositionalEncoding(nn.Module):
 
 
 class PokerLoss(nn.Module):
-    """
-    Multi-task loss for poker model with outcome-based weighting.
-    
-    Combines:
-    - Action classification loss (cross-entropy)
-    - Raise amount regression loss (Huber, only for raise actions)
-    - Outcome-based weighting (learn more from winning decisions)
-    """
+    # Multi-task loss for poker model with outcome-based weighting.
+    # Combines:
+    # - Action classification loss (cross-entropy)
+    # - Raise amount regression loss (Huber, only for raise actions)
+    # - Outcome-based weighting (learn more from winning decisions)
     
     def __init__(self, action_weight=1.0, value_weight=0.1, use_class_weights=False, use_outcome_weighting=True,
                  outcome_temperature=5.0, outcome_weight_range=(0.2, 2.0)):
-        """
-        Args:
-            action_weight: Weight for action classification loss
-            value_weight: Weight for raise amount regression loss
-            use_class_weights: If True, weight classes inversely to frequency
-            use_outcome_weighting: If True, weight by hand outcomes (wins/losses)
-            outcome_temperature: Temperature parameter for outcome scaling (lower = more sensitive)
-            outcome_weight_range: (min_weight, max_weight) tuple for outcome weight range
-        """
+        # Args:
+        #     action_weight: Weight for action classification loss
+        #     value_weight: Weight for raise amount regression loss
+        #     use_class_weights: If True, weight classes inversely to frequency
+        #     use_outcome_weighting: If True, weight by hand outcomes (wins/losses)
+        #     outcome_temperature: Temperature parameter for outcome scaling (lower = more sensitive)
+        #     outcome_weight_range: (min_weight, max_weight) tuple for outcome weight range
         super().__init__()
         self.action_weight = action_weight
         self.value_weight = value_weight
@@ -338,22 +338,18 @@ class PokerLoss(nn.Module):
         self.value_loss = nn.MSELoss(reduction='none')
     
     def forward(self, predictions, targets, outcomes=None):
-        """
-        Compute multi-task loss with optional outcome weighting.
-        
-        Args:
-            predictions: (action_logits, value_pred)
-                - action_logits: [B, 3]
-                - value_pred: [B, 1]
-            targets: (action_labels, value_targets)
-                - action_labels: [B]
-                - value_targets: [B]
-            outcomes: [B] profit/loss in big blinds (optional, for outcome weighting)
-        
-        Returns:
-            total_loss: scalar
-            loss_dict: dict with individual losses
-        """
+        # Compute multi-task loss with optional outcome weighting.
+        # Args:
+        #     predictions: (action_logits, value_pred)
+        #         - action_logits: [B, 3]
+        #         - value_pred: [B, 1]
+        #     targets: (action_labels, value_targets)
+        #         - action_labels: [B]
+        #         - value_targets: [B]
+        #     outcomes: [B] profit/loss in big blinds (optional, for outcome weighting)
+        # Returns:
+        #     total_loss: scalar
+        #     loss_dict: dict with individual losses
         action_logits, value_pred = predictions
         action_labels, value_targets = targets
         
@@ -415,15 +411,9 @@ class PokerLoss(nn.Module):
 
 
 def create_model(config=None):
-    """
-    Factory function to create model with default or custom config.
-    
-    Args:
-        config: dict with model parameters (optional)
-    
-    Returns:
-        model: PluribusPokerTransformer instance
-    """
+    # Factory function to create model with default or custom config.
+    # Args: config: dict with model parameters (optional)
+    # Returns: model: PluribusPokerTransformer instance
     if config is None:
         config = {
             'd_model': 512,
@@ -458,7 +448,7 @@ if __name__ == '__main__':
     batch_size = 4
     
     batch = {
-        'static_state': torch.randn(batch_size, 18),  # Random for test (IDs + other features)
+        'static_state': torch.randn(batch_size, 20),  # Random for test (IDs + other features)
         'action_sequence': torch.randn(batch_size, 20, 10),  # Random for test
     }
     
