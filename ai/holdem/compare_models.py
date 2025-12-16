@@ -42,7 +42,7 @@ from collections import defaultdict
 from tqdm import tqdm
 
 from inference import PokerInferenceEngine
-from environment import PokerKitEnvironment
+from train_rl_pokerkit import PokerKitEnvironment
 from model import PluribusPokerTransformer
 
 
@@ -86,7 +86,7 @@ class ModelComparisonEngine:
             display_name = f"{model_name}#{i}"
             self.models[i] = PokerInferenceEngine(str(path), device=device)
             self.model_names[i] = display_name
-            print(f"  [{i}] {display_name}")
+            print(f"  [{i}] {display_name} ✓")
         
         # Create environment for game simulation (one table with all loaded models)
         self.num_players = len(self.models)

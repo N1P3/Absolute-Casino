@@ -58,7 +58,7 @@ class PokerInferenceEngine:
         # 1. Check if embedded in checkpoint
         if 'model_config' in checkpoint:
             model_config = checkpoint['model_config']
-            print("Model config loaded from checkpoint")
+            print("✓ Model config loaded from checkpoint")
         
         # 2. Check for config.json in same directory as checkpoint
         if model_config is None:
@@ -69,12 +69,12 @@ class PokerInferenceEngine:
                     full_config = json.load(f)
                     if 'model_config' in full_config:
                         model_config = full_config['model_config']
-                        print(f"Model config loaded from {config_path}")
+                        print(f"✓ Model config loaded from {config_path}")
         
         # 3. Fallback to default config
         if model_config is None:
-            print("Warning: Model config not found, using default config")
-            print("  This may cause errors if checkpoint was trained with different config!")
+            print("⚠️  Warning: Model config not found, using default config")
+            print("   This may cause errors if checkpoint was trained with different config!")
             model_config = {
                 'd_model': 512,
                 'nhead': 8,
@@ -82,7 +82,7 @@ class PokerInferenceEngine:
                 'dim_feedforward': 2048,
                 'dropout': 0.1,
             }
-            # state_dict handled below after loading checkpoint
+            state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
         # Create model
         print("Creating model...")
         self.model = create_model(model_config)
@@ -92,27 +92,15 @@ class PokerInferenceEngine:
         
         # Check if state_dict has _orig_mod prefix (from torch.compile)
         if any(key.startswith('_orig_mod.') for key in state_dict.keys()):
-            print("Detected torch.compile() checkpoint, removing _orig_mod prefix...")
+            print("✓ Detected torch.compile() checkpoint, removing _orig_mod prefix...")
             # Remove _orig_mod. prefix from all keys
             state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
-
-        # Backwards-compat: some older checkpoints used "pos_encoding.pe" and nested "static_encoder" names
-        if 'pos_encoding.pe' in state_dict and 'pos_encoding.pe_tensor' not in state_dict:
-            state_dict['pos_encoding.pe_tensor'] = state_dict.pop('pos_encoding.pe')
-
-        # Try loading weights with strict=False to allow minor differences across checkpoint versions
-        load_result = self.model.load_state_dict(state_dict, strict=False)
-        if hasattr(load_result, 'missing_keys') or hasattr(load_result, 'unexpected_keys'):
-            missing = getattr(load_result, 'missing_keys', [])
-            unexpected = getattr(load_result, 'unexpected_keys', [])
-            if missing:
-                print(f"Warning: Missing keys in checkpoint (will use default init): {missing[:5]}{'...' if len(missing)>5 else ''}")
-            if unexpected:
-                print(f"Warning: Unexpected keys in checkpoint (ignored): {unexpected[:5]}{'...' if len(unexpected)>5 else ''}")
+        
+        self.model.load_state_dict(state_dict)
         self.model = self.model.to(self.device)
         self.model.eval()  # Set to evaluation mode
         
-        print(f"Model loaded successfully")
+        print(f"✓ Model loaded successfully")
         print(f"  Epoch: {checkpoint.get('epoch', 'unknown')}")
         print(f"  Best validation accuracy: {checkpoint.get('best_val_accuracy', 'unknown')}")
         print(f"  Device: {self.device}")
@@ -134,24 +122,14 @@ class PokerInferenceEngine:
         Returns:
             Card index (0-51 for known cards, 52 for unknown)
         """
-        # Accept several ways to express unknown/missing cards
-        if card_str in (None, '', '??'):
-            return UNKNOWN_CARD
-
-        # Normalize card string and tolerate both lower/upper-case input
-        card_str = str(card_str).strip()
-        if len(card_str) < 2:
-            return UNKNOWN_CARD
-
-        rank_char = card_str[0].upper()
-        suit_char = card_str[1].lower()
-
-        try:
-            rank_idx = self.ranks.index(rank_char)
-            suit_idx = self.suits.index(suit_char)
-        except ValueError:
-            # Unknown rank or suit; return UNKNOWN_CARD
-            return UNKNOWN_CARD
+        if card_str == '??':
+            return 52
+        
+        rank = card_str[0]
+        suit = card_str[1]
+        
+        rank_idx = self.ranks.index(rank)
+        suit_idx = self.suits.index(suit)
         
         return rank_idx * 4 + suit_idx
     
@@ -286,18 +264,6 @@ class PokerInferenceEngine:
         # Apply temperature scaling
         action_logits = action_logits / temperature
         
-        # Mask out invalid actions (if provided in hand_state) to avoid selecting illegal moves
-        valid_actions = hand_state.get('valid_actions', None)
-        if valid_actions is not None and isinstance(valid_actions, list) and len(valid_actions) > 0:
-            # Build mask of invalid actions
-            valid_mask = torch.zeros_like(action_logits, dtype=torch.bool)
-            for a in valid_actions:
-                if 0 <= a < action_logits.shape[1]:
-                    valid_mask[:, a] = True
-            # Replace logits for invalid actions with large negative value so softmax assigns ~0 prob
-            invalid_mask = ~valid_mask
-            action_logits = action_logits.masked_fill(invalid_mask, -1e9)
-
         # Get probabilities
         action_probs = F.softmax(action_logits, dim=1)  # [1, 3]
         action_probs_numpy = action_probs.cpu().numpy()[0]  # [3]

@@ -13,6 +13,7 @@ import { useActionTimer, useHoldemSocket } from "./hooks";
 interface HoldemGameProps {
   tableId: number;
   onLeaveTable: () => void;
+  onAddBot?: () => void;
 }
 
 const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
@@ -104,7 +105,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
 
   return (
     <div className="flex flex-col h-screen bg-background relative overflow-hidden">
-      <GameHeader tableId={tableId} pot={gameState.pot} stage={gameState.gameStage} onLeave={handleLeave} />
+      <GameHeader tableId={tableId} pot={gameState.pot} stage={gameState.gameStage} onLeave={handleLeave} onAddBot={() => sendCommand({ command: "add_bot", tableId })} />
 
       <div className="flex-1 relative">
         <Scene>

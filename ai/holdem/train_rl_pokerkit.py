@@ -57,7 +57,6 @@ from tqdm import tqdm
 from datetime import datetime
 from collections import defaultdict, deque
 from typing import Dict, List, Tuple, Optional
-import random
 
 # PokerKit imports
 from pokerkit import Automation, NoLimitTexasHoldem
@@ -124,7 +123,7 @@ class PPOTrainer:
                 self.scaler = torch.cuda.amp.GradScaler()
             except (AttributeError, TypeError):
                 self.scaler = torch.cuda.amp.GradScaler()
-            print("  Using automatic mixed precision (fp16)")
+            print("  ✓ Using automatic mixed precision (fp16)")
         else:
             self.scaler = None
         
@@ -137,23 +136,12 @@ class PPOTrainer:
         # Pass randomize_stacks parameter from trainer config
         self.env = PokerKitEnvironment(randomize_stacks=randomize_stacks)
         if randomize_stacks:
-            print("  Environment: PokerKit with RANDOMIZED stacks (matches training distribution)")
+            print("  ✓ Environment: PokerKit with RANDOMIZED stacks (matches training distribution)")
         else:
-            print("  Environment: PokerKit with FIXED stacks (full-stack play)")
+            print("  ✓ Environment: PokerKit with FIXED stacks (full-stack play)")
         
         # Preallocated tensors for encoding (avoid repeated allocations)
         self._preallocate_tensors()
-
-        # Critic network (separate from model's raise amount output)
-        # We'll use fused features (from model's return_attention) as input
-        d_model = self.model.d_model if hasattr(self.model, 'd_model') else 512
-        hidden = max(d_model // 2, 128)
-        self.critic_net = nn.Sequential(
-            nn.Linear(d_model, hidden),
-            nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(hidden, 1),
-        ).to(self.device)
         
         # Tracking
         self.episode = 0
@@ -191,15 +179,15 @@ class PPOTrainer:
     
     def _preallocate_tensors(self):
         """Preallocate tensors for state encoding to avoid repeated allocations."""
-        # Static state: 7 card IDs + 13 scalar features = 20 total
+        # Static state: 7 card IDs + 11 scalar features = 18 total
         # Card IDs: 2 hole cards + 5 board cards (0-51 for real cards, 52 for unknown)
-        # Scalar features: 6 stacks + 1 pot + 4 street one-hot + 1 equity + 1 odds
-        self._static_state_buffer = torch.zeros(1, 20, device=self.device, dtype=torch.float32)
+        # Scalar features: 6 stacks + 1 pot + 4 street one-hot
+        self._static_state_buffer = torch.zeros(1, 18, device=self.device, dtype=torch.float32)
         
         # Action sequence: 20 actions × 10 features
         self._action_seq_buffer = torch.zeros(1, 20, 10, device=self.device, dtype=torch.float32)
         
-        print("  Preallocated tensors for zero-copy encoding")
+        print("  ✓ Preallocated tensors for zero-copy encoding")
     
     def _clone_model(self) -> PluribusPokerTransformer:
         """Clone current model for opponent pool."""
@@ -230,22 +218,20 @@ class PPOTrainer:
         
         This avoids repeated numpy array creation and tensor conversion, which was a major bottleneck.
         
-        Model expects static_state: [B, 20] where:
+        Model expects static_state: [B, 18] where:
         - First 7 values: Card IDs (0-51 for real cards, 52 for unknown)
           * 2 hole cards + 5 board cards
-        - Next 13 values: Scalar features
+        - Next 11 values: Scalar features
           * 6 stacks (normalized)
           * 1 pot (normalized)
           * 4 street one-hot
-          * 1 equity
-          * 1 pot odds
         """
         # Zero out buffers
         self._static_state_buffer.zero_()
         self._action_seq_buffer.zero_()
         
         # Get references to buffers for easier indexing
-        static = self._static_state_buffer[0]  # Shape: [20]
+        static = self._static_state_buffer[0]  # Shape: [18]
         action_seq = self._action_seq_buffer[0]  # Shape: [20, 10]
         
         # Encode hole cards as IDs (first 2 positions)
@@ -271,11 +257,19 @@ class PPOTrainer:
                     static[2 + i] = 52.0  # UNKNOWN_CARD
             else:
                 static[2 + i] = 52.0  # UNKNOWN_CARD
-        # Encode equity (index 18)
-        static[18] = state.get('equity', 0.5)
         
-        # Encode pot odds (index 19)
-        static[19] = state.get('pot_odds', 0.0)
+        # Encode stacks (next 6 features, normalized)
+        stacks = state['stacks']
+        for i, stack in enumerate(stacks[:6]):
+            static[7 + i] = stack / self.env.starting_stack
+        
+        # Encode pot (next 1 feature, normalized)
+        static[13] = state['pot'] / self.env.starting_stack
+        
+        # Encode street (last 4 features, one-hot)
+        street = state['street']
+        if street < 4:
+            static[14 + street] = 1.0
         
         # Encode action sequence (unchanged)
         actions = state.get('actions', [])
@@ -332,15 +326,11 @@ class PPOTrainer:
         
         # Forward pass through model
         if use_critic:
-            # Use model forward to get fused features and raise-prediction output
+            # Use model's value head as critic (not a separate critic network)
             action_logits, value_pred, features = model(batch, return_attention=True)
-            # Use our separate critic network on fused features (features['fused_features'])
-            fused_features = features.get('fused_features') if isinstance(features, dict) else None
-            if fused_features is not None:
-                critic_value = self.critic_net(fused_features).squeeze(-1).clamp(-10.0, 10.0)
-            else:
-                # No fused features available? fallback to zero baseline
-                critic_value = torch.zeros(1, device=self.device)
+            # value_pred is in log space for raise amounts, but we'll use it as state value
+            # Clamp to reasonable range for state values
+            critic_value = value_pred.squeeze(-1).clamp(-10.0, 10.0)  # [1]
         else:
             action_logits, _ = model(batch)
             critic_value = torch.zeros(1, device=self.device)
@@ -446,9 +436,6 @@ class PPOTrainer:
         state = self.env.reset()
         info_env = {}  # Initialize to avoid unbound variable
         
-        # Track states for reward shaping
-        state_history = {0: [], 1: []}  # Store states for each player
-        
         # Play hand
         while not state['done']:
             current_player = state['player_idx']
@@ -497,9 +484,6 @@ class PPOTrainer:
                 episode_data[current_player]['cached_action_logits'].append(info['cached_action_logits'])
                 episode_data[current_player]['cached_critic_values'].append(info['cached_critic_value'])
             
-            # Store state for reward shaping
-            state_history[current_player].append(state)
-            
             # Take action
             next_state, reward, done, info_env = self.env.step(action, raise_amount)
             state = next_state
@@ -510,91 +494,12 @@ class PPOTrainer:
         else:
             final_rewards = [0.0] * self.env.player_count
         
-        # Compute shaped rewards using potential-based reward shaping
-        # Φ(s) = equity * pot (potential function)
-        # R_shaped = R_env + γ * Φ(s') - Φ(s)
+        # Assign rewards
         for player in list(episode_data.keys()):
             num_actions = len(episode_data[player]['actions'])
-            if num_actions == 0:
-                continue
-                
-            shaped_rewards = []
-            states = state_history[player]
-            valid_masks = episode_data[player]['valid_masks']
-            
-            for i in range(num_actions):
-                # Current state potential
-                s = states[i]
-                # Get valid mask for this step to check if Fold was possible
-                # valid_masks[i] is a tensor or list. If tensor, convert to list/numpy
-                # It's stored as tensor in play_episode.
-                current_mask = valid_masks[i]
-                if isinstance(current_mask, torch.Tensor):
-                    current_mask = current_mask.cpu().numpy()
-                
-                # Check if Fold (index 0) was valid
-                # Mask is boolean: True if valid.
-                can_fold = current_mask[0] if current_mask is not None else True
-
-                # FIX: Do NOT use pot size in potential, as it rewards simply inflating the pot.
-                # Use constant scale (e.g. 20 BB = 2000 chips? No, let's use 100.0 as a base unit)
-                # If equity goes 0.2 -> 0.8, reward is (0.8-0.2)*100 = +60.
-                phi_s = s.get('equity', 0.5) * 100.0
-                
-                # Next state potential
-                if i + 1 < len(states):
-                    s_next = states[i + 1]
-                    phi_s_next = s_next.get('equity', 0.5) * 100.0
-                else:
-                    # Last action - use final state
-                    phi_s_next = 0.0  # Terminal state has no future potential
-                
-                # Environment reward (only at end)
-                r_env = final_rewards[player] if i == num_actions - 1 else 0.0
-                
-                # Shaped reward
-                r_shaped = r_env + self.gamma * phi_s_next - phi_s
-                
-                # --- PENALTY/REWARD LOGIC ---
-                action_idx = episode_data[player]['actions'][i]
-                equity = s.get('equity', 0.5)
-                
-                # 1. Preflop Looseness Penalty (Increased)
-                # Penalize entering pot with weak hand preflop
-                # SKIP if checking was forced (Fold invalid) and we checked (Action 1)
-                is_forced_check = (not can_fold) and (action_idx == 1)
-                
-                if s['street'] == 0 and action_idx in [1, 2] and equity < 0.50:
-                    # If we checked because we couldn't fold, DON'T penalize
-                    if not is_forced_check:
-                        # Penalty = -50.0 * (0.5 - equity)
-                        penalty = -50.0 * (0.5 - equity)
-                        r_shaped += penalty
-
-                # 2. Good Fold Reward / Bad Fold Penalty
-                if action_idx == 0:  # FOLD
-                    if equity < 0.40:
-                        # Good fold! Saved money.
-                        r_shaped += 5.0
-                    elif equity > 0.60:
-                        # Bad fold! Folded a winning hand.
-                        r_shaped -= 5.0
-                
-                # 3. Bad Call/Raise Penalty (Any Street)
-                # Chasing with very low equity
-                if action_idx in [1, 2] and equity < 0.30:
-                    # If we checked because we couldn't fold, DON'T penalize
-                    if not is_forced_check:
-                        r_shaped -= 10.0
-                # ----------------------------
-                
-                # DEBUG: Print rewards for first few episodes or periodically
-                if random.random() < 0.001:  # 0.1% chance to print
-                    print(f"[DEBUG] P{player} St:{s['street']} Eq:{equity:.2f} Act:{action_idx} R_env:{r_env:.2f} Phi:{phi_s:.2f}->{phi_s_next:.2f} Pen:{penalty if 'penalty' in locals() else 0:.2f} => R_shaped:{r_shaped:.2f}")
-
-                shaped_rewards.append(r_shaped)
-            
-            episode_data[player]['rewards'] = shaped_rewards
+            # Use reward for this player if available, otherwise 0
+            r = final_rewards[player] if player < len(final_rewards) else 0.0
+            episode_data[player]['rewards'] = [r] * num_actions
         
         return episode_data
     
@@ -678,7 +583,7 @@ class PPOTrainer:
         advantages = advantages.detach()
         
         # Batch all static states and action sequences
-        batch_static_states = torch.cat(all_static_states, dim=0)  # [N, 20]
+        batch_static_states = torch.cat(all_static_states, dim=0)  # [N, 18]
         batch_action_seqs = torch.cat(all_action_seqs, dim=0)  # [N, 20, 10]
         
         # Single forward pass for all steps
@@ -687,13 +592,9 @@ class PPOTrainer:
             'action_sequence': batch_action_seqs,
         }
         action_logits, value_preds, features = self.model(batch, return_attention=True)
-
-        # Use our separate critic network on fused features (from model attention)
-        fused_features = features.get('fused_features') if isinstance(features, dict) else None
-        if fused_features is not None:
-            critic_preds = self.critic_net(fused_features).squeeze(-1).clamp(-10.0, 10.0)
-        else:
-            critic_preds = torch.zeros((action_logits.shape[0],), device=self.device)
+        
+        # Use model's value head as critic (clamp to reasonable range)
+        critic_preds = value_preds.squeeze(-1).clamp(-10.0, 10.0)
         
         # Compute log probabilities for all actions with proper masking
         log_probs_all = []
@@ -1003,7 +904,7 @@ class PPOTrainer:
                 if eval_metrics['expected_value'] > self.best_win_rate:
                     self.best_win_rate = eval_metrics['expected_value']
                     self.save_checkpoint('best_model.pt')
-                    print(f"  New best EV: {self.best_win_rate:+.3f}")
+                    print(f"  ✓ New best EV: {self.best_win_rate:+.3f}")
             
             # Save checkpoint
             if self.episode % save_every == 0:
@@ -1012,10 +913,10 @@ class PPOTrainer:
             # Update opponent pool
             if self.episode % update_pool_every == 0:
                 self.opponent_pool.append(self._clone_model())
-                print(f"\n  Updated opponent pool (size: {len(self.opponent_pool)})")
+                print(f"\n  ✓ Updated opponent pool (size: {len(self.opponent_pool)})")
         
         elapsed = time.time() - start_time
-        print(f"\nTraining complete! Total time: {elapsed/60:.1f} minutes")
+        print(f"\n✓ Training complete! Total time: {elapsed/60:.1f} minutes")
         print(f"Best expected value vs baseline: {self.best_win_rate:+.3f}")
         
         self.writer.close()
@@ -1038,15 +939,15 @@ class PPOTrainer:
         
         checkpoint_path = self.output_dir / filename
         torch.save(checkpoint, checkpoint_path)
-        print(f"  Saved checkpoint: {checkpoint_path}")
+        print(f"  ✓ Saved checkpoint: {checkpoint_path}")
 
 
 def main():
     parser = argparse.ArgumentParser(description='RL Training for Poker Transformer (Stage 2) using PokerKit')
     
     # Model
-    parser.add_argument('--checkpoint', type=str, default=None,
-                       help='Path to pre-trained model checkpoint from stage 1 (optional)')
+    parser.add_argument('--checkpoint', type=str, required=True,
+                       help='Path to pre-trained model checkpoint from stage 1')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     
     # RL parameters
@@ -1054,19 +955,19 @@ def main():
                        help='Total number of episodes to train')
     parser.add_argument('--batch-size', type=int, default=10,
                        help='Episodes per gradient update')
-    parser.add_argument('--lr', type=float, default=2e-4,
+    parser.add_argument('--lr', type=float, default=2e-5,
                        help='Learning rate')
     parser.add_argument('--gamma', type=float, default=1.0,
                        help='Discount factor')
     parser.add_argument('--gae-lambda', type=float, default=0.95,
                        help='GAE lambda parameter')
-    parser.add_argument('--clip-epsilon', type=float, default=0.3,
+    parser.add_argument('--clip-epsilon', type=float, default=0.25,
                        help='PPO clipping parameter')
     parser.add_argument('--ppo-epochs', type=int, default=6,
                        help='Number of PPO update epochs per batch')
-    parser.add_argument('--target-kl', type=float, default=0.03,
+    parser.add_argument('--target-kl', type=float, default=0.02,
                        help='Target KL divergence for early stopping')
-    parser.add_argument('--entropy-coef', type=float, default=0.01,
+    parser.add_argument('--entropy-coef', type=float, default=0.02,
                        help='Entropy coefficient for exploration (higher for more exploration)')
     parser.add_argument('--temperature', type=float, default=1.2,
                        help='Sampling temperature during self-play for exploration')
@@ -1118,55 +1019,22 @@ def main():
     print(f"Learning rate: {args.lr}")
     print("=" * 80)
     
-    # Load pre-trained model or initialize fresh
-    if args.checkpoint:
-        print(f"\nLoading pre-trained model from: {args.checkpoint}")
-        checkpoint = torch.load(args.checkpoint, map_location=args.device)
-        
-        # Get model config
-        model_config = None
-        if 'model_config' in checkpoint:
-            model_config = checkpoint['model_config']
-        else:
-            config_path = Path(args.checkpoint).parent / 'config.json'
-            if config_path.exists():
-                with open(config_path, 'r') as f:
-                    model_config = json.load(f)
-        
-        if model_config is None:
-            print("Warning: Using default model config")
-            model_config = {
-                'd_model': 512,
-                'nhead': 8,
-                'num_layers': 6,
-                'dim_feedforward': 2048,
-                'dropout': 0.1,
-            }
-        
-        # Filter out non-model parameters
-        valid_model_keys = {'d_model', 'nhead', 'num_layers', 'dim_feedforward', 'dropout'}
-        filtered_config = {k: v for k, v in model_config.items() if k in valid_model_keys}
-        
-        # Create model
-        model = create_model(filtered_config)
-        
-        # Load weights
-        state_dict = checkpoint['model_state_dict']
-        if any(key.startswith('_orig_mod.') for key in state_dict.keys()):
-            print("  → Removing torch.compile() prefix from checkpoint...")
-            state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
-        
-        # Handle shape mismatch (e.g. if input dim changed)
-        try:
-            model.load_state_dict(state_dict)
-            print(f"Model loaded successfully")
-        except RuntimeError as e:
-            print(f"Warning: Could not load state dict strictly: {e}")
-            print("Loading with strict=False (partial loading)...")
-            model.load_state_dict(state_dict, strict=False)
-            
+    # Load pre-trained model
+    print(f"\nLoading pre-trained model from: {args.checkpoint}")
+    checkpoint = torch.load(args.checkpoint, map_location=args.device)
+    
+    # Get model config
+    model_config = None
+    if 'model_config' in checkpoint:
+        model_config = checkpoint['model_config']
     else:
-        print("\nNo checkpoint provided. Initializing fresh model (Tabula Rasa).")
+        config_path = Path(args.checkpoint).parent / 'config.json'
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                model_config = json.load(f)
+    
+    if model_config is None:
+        print("Warning: Using default model config")
         model_config = {
             'd_model': 512,
             'nhead': 8,
@@ -1174,9 +1042,24 @@ def main():
             'dim_feedforward': 2048,
             'dropout': 0.1,
         }
-        model = create_model(model_config)
-        
+    
+    # Filter out non-model parameters (like 'dataset', 'batch_size', etc.)
+    valid_model_keys = {'d_model', 'nhead', 'num_layers', 'dim_feedforward', 'dropout'}
+    filtered_config = {k: v for k, v in model_config.items() if k in valid_model_keys}
+    
+    # Create model
+    model = create_model(filtered_config)
+    
+    # Load weights
+    state_dict = checkpoint['model_state_dict']
+    if any(key.startswith('_orig_mod.') for key in state_dict.keys()):
+        print("  → Removing torch.compile() prefix from checkpoint...")
+        state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
+    
+    model.load_state_dict(state_dict)
     model = model.to(args.device)
+    
+    print(f"✓ Model loaded successfully")
 
     # Create optimizer (no separate critic needed - using model's value head)
     optimizer = torch.optim.AdamW(
@@ -1222,7 +1105,7 @@ def main():
         trainer.total_steps = rl_checkpoint['total_steps']
         trainer.best_win_rate = rl_checkpoint.get('best_win_rate', 0.0)
         
-        print(f"  Resumed from episode {trainer.episode}")
+        print(f"  ✓ Resumed from episode {trainer.episode}")
     
     # Train
     trainer.train(

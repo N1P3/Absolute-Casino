@@ -40,6 +40,18 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
         this.jwtUtil = jwtUtil;
         this.balanceUpdateManager = balanceUpdateManager;
         this.holdemGameService = holdemGameService;
+
+        // Register listener to broadcast updates triggered by internal events (AI,
+        // timers)
+        this.holdemGameService.setUpdateListener(this::sendTableStateSafely);
+    }
+
+    private void sendTableStateSafely(int tableId) {
+        try {
+            sendTableStateToAll(tableId);
+        } catch (IOException e) {
+            log.severe("Error broadcasting update for table " + tableId + ": " + e.getMessage());
+        }
     }
 
     @Override
@@ -101,7 +113,9 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
                 case "fold" -> handleAction(userId, node, PlayerActionType.FOLD);
                 case "bet" -> handleActionWithAmount(userId, node, PlayerActionType.BET);
                 case "raise" -> handleActionWithAmount(userId, node, PlayerActionType.RAISE);
+
                 case "all_in" -> handleAction(userId, node, PlayerActionType.ALL_IN);
+                case "add_bot" -> handleAddBot(userId, node, session);
                 default -> sendMessage(session, error("Nieznany command: " + command));
             }
         } catch (Exception e) {
@@ -201,6 +215,13 @@ public class HoldemWebSocketHandler extends TextWebSocketHandler {
             }
             return;
         }
+        sendTableStateToAll(tableId);
+    }
+
+    private void handleAddBot(Long userId, JsonNode node, WebSocketSession session) throws IOException {
+        int tableId = node.get("tableId").asInt();
+        holdemGameService.addAiPlayer(tableId);
+        tryAutoStartHand(tableId);
         sendTableStateToAll(tableId);
     }
 

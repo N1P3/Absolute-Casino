@@ -16,6 +16,7 @@ public class HoldemGameService {
 
     private CardsShoe shoe = new CardsShoe(1);
     private final HoldemHandEvaluator handEvaluator = new HoldemHandEvaluator();
+    private final HoldemAI holdemAI = new HoldemAI();
 
     @Getter
     private final int maxSeatsPerTable = 8;
@@ -62,6 +63,21 @@ public class HoldemGameService {
         } else {
             waitingPlayers.computeIfAbsent(tableId, id -> new ArrayList<>())
                     .add(new WaitingPlayer(userId, buyIn));
+        }
+    }
+
+    public synchronized void addAiPlayer(int tableId) {
+        HoldemTable table = createTableIfAbsent(tableId);
+        Seat freeSeat = table.getSeats().stream()
+                .filter(seat -> !seat.isOccupied())
+                .findFirst()
+                .orElse(null);
+        if (freeSeat != null) {
+            long aiId = -System.currentTimeMillis();
+            freeSeat.setUserId(aiId);
+            freeSeat.setStack(1000L);
+            freeSeat.setSittingOut(false);
+            freeSeat.setAi(true);
         }
     }
 
@@ -196,6 +212,7 @@ public class HoldemGameService {
                 ps.setFolded(true);
                 ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": FOLD");
+                hand.getActionHistory().add(new HoldemHand.ActionRecord(seat.getPosition(), PlayerActionType.FOLD, 0));
             }
             case CHECK -> {
                 long toCall = hand.getCurrentBet() - ps.getChipsInPotThisStreet();
@@ -204,6 +221,7 @@ public class HoldemGameService {
                 }
                 ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": CHECK");
+                hand.getActionHistory().add(new HoldemHand.ActionRecord(seat.getPosition(), PlayerActionType.CHECK, 0));
             }
             case CALL -> {
                 long toCall = hand.getCurrentBet() - ps.getChipsInPotThisStreet();
@@ -216,6 +234,8 @@ public class HoldemGameService {
                 takeChips(hand, seat, toCall);
                 ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": CALL " + toCall);
+                hand.getActionHistory()
+                        .add(new HoldemHand.ActionRecord(seat.getPosition(), PlayerActionType.CALL, toCall));
             }
             case BET -> {
                 if (hand.getCurrentBet() != 0) {
@@ -236,6 +256,8 @@ public class HoldemGameService {
                 hand.setCurrentBet(newBetAmount);
                 ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": BET " + newBetAmount);
+                hand.getActionHistory()
+                        .add(new HoldemHand.ActionRecord(seat.getPosition(), PlayerActionType.BET, newBetAmount));
             }
             case RAISE -> {
                 if (hand.getCurrentBet() == 0) {
@@ -267,6 +289,8 @@ public class HoldemGameService {
                 hand.setLastRaiseSize(raiseSize);
                 ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": RAISE do " + newBetAmount);
+                hand.getActionHistory()
+                        .add(new HoldemHand.ActionRecord(seat.getPosition(), PlayerActionType.RAISE, newBetAmount));
             }
             case ALL_IN -> {
                 if (seat.getStack() <= 0) {
@@ -280,6 +304,8 @@ public class HoldemGameService {
                 }
                 ps.setActedThisStreet(true);
                 table.setLastActionText("Seat " + seat.getPosition() + ": ALL-IN");
+                hand.getActionHistory()
+                        .add(new HoldemHand.ActionRecord(seat.getPosition(), PlayerActionType.ALL_IN, toPutNow));
             }
         }
 
@@ -359,6 +385,9 @@ public class HoldemGameService {
 
         Seat firstToAct = getNextOccupiedSeat(table, bigBlindSeat.getPosition(), activeSeats);
         hand.setCurrentPlayerSeat(firstToAct.getPosition());
+        if (firstToAct.isAi()) {
+            java.util.concurrent.CompletableFuture.runAsync(() -> processAiTurn(table));
+        }
     }
 
     private void takeChips(HoldemHand hand,
@@ -480,6 +509,12 @@ public class HoldemGameService {
                     .anyMatch(s -> s.getPosition() == finalPos);
             if (found) {
                 hand.setCurrentPlayerSeat(finalPos);
+
+                // Trigger AI if it's their turn
+                Seat nextSeat = table.getSeat(finalPos);
+                if (nextSeat != null && nextSeat.isAi()) {
+                    java.util.concurrent.CompletableFuture.runAsync(() -> processAiTurn(table));
+                }
                 return;
             }
         }
@@ -660,10 +695,30 @@ public class HoldemGameService {
         return pots;
     }
 
+    public interface GameUpdateListener {
+        void onUpdate(int tableId);
+    }
+
+    private GameUpdateListener updateListener;
+
+    public void setUpdateListener(GameUpdateListener listener) {
+        this.updateListener = listener;
+    }
+
+    private void notifyUpdate(int tableId) {
+        if (updateListener != null) {
+            updateListener.onUpdate(tableId);
+        }
+    }
+
     private void finishHandAndScheduleNext(HoldemTable table, String resultText) {
         table.setLastResultText(resultText);
         table.setLastResultTimestamp(System.currentTimeMillis());
         endHandAndMoveWaitingPlayers(table);
+
+        // Notify immediately to show showdown results
+        notifyUpdate(table.getTableId());
+
         int tableId = table.getTableId();
         new Thread(() -> {
             try {
@@ -672,6 +727,8 @@ public class HoldemGameService {
             }
             try {
                 startHandIfPossible(tableId);
+                // Notify after starting new hand (or not) to update state
+                notifyUpdate(tableId);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -720,5 +777,32 @@ public class HoldemGameService {
     }
 
     private record SidePot(long amount, Set<Integer> eligibleSeats) {
+    }
+
+    private void processAiTurn(HoldemTable table) {
+        try {
+            // Wait a bit for realism
+            Thread.sleep(1000);
+
+            Seat aiSeat = table.getSeat(table.getCurrentPlayerSeat());
+            if (aiSeat == null || !aiSeat.isAi())
+                return;
+
+            HoldemAI.AIAction action = holdemAI.predictMove(table, aiSeat);
+
+            if (action == null) {
+                // Fallback: Check or Fold
+                handlePlayerAction(table.getTableId(), aiSeat.getUserId(), PlayerActionType.FOLD, 0);
+                return;
+            }
+
+            handlePlayerAction(table.getTableId(), aiSeat.getUserId(), action.type, action.raiseAmount);
+
+            // Notify listener (WebSocket) to broadcast update
+            notifyUpdate(table.getTableId());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

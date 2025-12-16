@@ -32,6 +32,11 @@ public class HoldemHand {
         this.shoe = shoe;
     }
 
+    public record ActionRecord(int playerSeat, PlayerActionType type, long amount) {
+    }
+
+    private final List<ActionRecord> actionHistory = new ArrayList<>();
+
     public long getBetThisStreetForSeat(int seatPosition) {
         PlayerHandState state = players.get(seatPosition);
         if (state == null) {
