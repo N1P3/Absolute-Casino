@@ -50,16 +50,16 @@ export const calculateCardsPosition = (seatPosition: Coord, tableCenter: Coord, 
 
   const leftAngle = Math.atan2(tableCenter[0] - leftWorld[0], tableCenter[2] - leftWorld[2]);
   const rightAngle = Math.atan2(tableCenter[0] - rightWorld[0], tableCenter[2] - rightWorld[2]);
-  const avgAngle = (leftAngle + rightAngle) / 2;
+  const avgAngle = (leftAngle + rightAngle) / 2 + Math.PI;
 
   return [
     {
       positon: leftWorld,
-      rotation: [((faceDown ? 1 : -1) * Math.PI) / 2, 0, avgAngle],
+      rotation: [-Math.PI / 2, 0, avgAngle],
     },
     {
       positon: rightWorld,
-      rotation: [((faceDown ? 1 : -1) * Math.PI) / 2, 0, avgAngle],
+      rotation: [-Math.PI / 2, 0, avgAngle],
     },
   ];
 };

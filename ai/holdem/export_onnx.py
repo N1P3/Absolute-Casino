@@ -23,7 +23,7 @@ class OnnxWrapper(nn.Module):
         return self.model(batch)
 
 def export_model():
-    checkpoint_path = Path('checkpoints_big_2/best_model.pt')
+    checkpoint_path = Path('checkpoints/best_model.pt')
     output_path = Path('holdem_model.onnx')
     
     print(f"Loading checkpoint: {checkpoint_path}")
@@ -88,7 +88,7 @@ def export_model():
             'action_logits': {0: 'batch_size'},
             'value_pred': {0: 'batch_size'}
         },
-        opset_version=14
+        opset_version=18
     )
     print("[OK] Export complete!")
 

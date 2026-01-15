@@ -24,7 +24,7 @@ const Game3DContent = ({ state }: { state: HoldemGameState }) => {
   return (
     <>
       {/* Deck */}
-      <Deck position={DECK_POS} scale={0.2} texture={textures["BB"]} />
+      <Deck position={DECK_POS} scale={0.25} texture={textures["BB"]} />
 
       {/* Community Cards */}
       {state.communityCards.map((card, i) => (
@@ -34,7 +34,7 @@ const Game3DContent = ({ state }: { state: HoldemGameState }) => {
           textures={textures}
           position={[-1.3 + i * 0.7, 0.01, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
-          scale={0.2}
+          scale={0.25}
           fromPosition={DECK_POS}
           fromRotation={[-Math.PI / 2, 0, 0]}
           delay={i * 200} // Staggered deal
@@ -46,10 +46,15 @@ const Game3DContent = ({ state }: { state: HoldemGameState }) => {
         const pos = SEAT_POSITIONS_3D[player.seatPosition] || [0, 0, 0];
         const relativeCenter = getRelativeCenter(player.seatPosition);
         const isHero = player.you;
-        const cardsPos = calculateCardsPosition(pos, relativeCenter, !isHero && !player.folded);
+        const cardsPos = calculateCardsPosition(pos, relativeCenter);
 
         const stackPos = getStackPosition(pos, relativeCenter);
         const betPos: [number, number, number] = [pos[0] * 0.7, 0.06, pos[2] * 0.7];
+
+        const showCards = player.holeCards && player.holeCards.length === 2;
+        const isFaceDown = !isHero && !player.folded && !showCards;
+        const card1 = showCards ? player.holeCards![0] : "BB";
+        const card2 = showCards ? player.holeCards![1] : "BB";
 
         return (
           <group key={player.seatPosition}>
@@ -69,76 +74,52 @@ const Game3DContent = ({ state }: { state: HoldemGameState }) => {
               // No fromPosition means they drop from sky on load, then stay
             />
 
-            {/* Bet Chips */}
-            {/* {player.betThisStreet > 0 && (
-              <Chips
-                key={`bet-${player.seatPosition}-${player.betThisStreet}`} // Force re-anim on change
-                amount={player.betThisStreet}
-                position={betPos}
-                fromPosition={stackPos} // Animate from stack
-                delay={0}
-              />
-            )} */}
-
             {/* Hand Logic */}
-            {isHero && state.playerHand?.length ? (
+            {!player.folded && (state.state === "playing" || showCards) && (
               <>
                 <Card
-                  cardKey={state.playerHand[0] as CardKey}
+                  key={`card1-${player.seatPosition}`}
+                  cardKey={card1 as CardKey}
                   textures={textures}
                   position={cardsPos[0].positon}
                   rotation={cardsPos[0].rotation}
-                  scale={0.2}
+                  scale={isHero ? 0.25 : 0.2}
+                  flipped={isFaceDown}
                   fromPosition={DECK_POS}
                   fromRotation={cardsPos[0].rotation}
                   delay={0}
                 />
                 <Card
-                  cardKey={state.playerHand[1] as CardKey}
+                  key={`card2-${player.seatPosition}`}
+                  cardKey={card2 as CardKey}
                   textures={textures}
                   position={cardsPos[1].positon}
                   rotation={cardsPos[1].rotation}
-                  scale={0.2}
+                  scale={isHero ? 0.25 : 0.2}
+                  flipped={isFaceDown}
                   fromPosition={DECK_POS}
                   fromRotation={cardsPos[1].rotation}
                   delay={200}
                 />
               </>
-            ) : (
-              !isHero &&
-              !player.folded &&
-              state.state === "playing" && (
-                <>
-                  <Card
-                    cardKey="BB"
-                    textures={textures}
-                    position={cardsPos[0].positon}
-                    rotation={cardsPos[0].rotation}
-                    scale={0.2}
-                    flipped
-                    fromPosition={DECK_POS}
-                    fromRotation={cardsPos[0].rotation}
-                    delay={0}
-                  />
-                  <Card
-                    cardKey="BB"
-                    textures={textures}
-                    position={cardsPos[1].positon}
-                    rotation={cardsPos[1].rotation}
-                    scale={0.2}
-                    flipped
-                    fromPosition={DECK_POS}
-                    fromRotation={cardsPos[1].rotation}
-                    delay={200}
-                  />
-                </>
-              )
             )}
           </group>
         );
       })}
 
-      {state.pot > 0 && <Chips amount={state.pot} position={POT_POS} fromPosition={[0, 5, 0]} delay={500} />}
+      {state.pot > 0 && (
+        <Chips
+          key={state.gameOver ? "pot-won" : "pot-active"}
+          amount={state.pot}
+          position={
+            state.gameOver && state.players.some((p) => p.winner)
+              ? getStackPosition(SEAT_POSITIONS_3D[state.players.find((p) => p.winner)!.seatPosition], getRelativeCenter(state.players.find((p) => p.winner)!.seatPosition))
+              : POT_POS
+          }
+          fromPosition={state.gameOver ? POT_POS : [0, 5, 0]}
+          delay={state.gameOver ? 0 : 500}
+        />
+      )}
     </>
   );
 };

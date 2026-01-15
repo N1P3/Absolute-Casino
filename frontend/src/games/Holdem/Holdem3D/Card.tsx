@@ -20,11 +20,11 @@ const Card: React.FC<CardProps> = ({ cardKey, textures, position, rotation = [0,
   const { springPosition, springRotation } = useSpring({
     from: {
       springPosition: fromPosition || [position[0], position[1] + 5, position[2]], // Default fly from sky
-      springRotation: fromRotation || [rotation[0], rotation[1] + Math.PI * 4, rotation[2]], // Spin 2 times
+      springRotation: fromRotation ? [fromRotation[0], fromRotation[1], fromRotation[2]] : [rotation[0], rotation[1], rotation[2] + Math.PI * 4], // Spin 2 times
     },
     to: {
       springPosition: position,
-      springRotation: [rotation[0] + (flipped ? Math.PI : 0), rotation[1], rotation[2]],
+      springRotation: [rotation[0], rotation[1], rotation[2]],
     },
     delay,
     config: { mass: 1, tension: 170, friction: 26 },
@@ -37,6 +37,14 @@ const Card: React.FC<CardProps> = ({ cardKey, textures, position, rotation = [0,
 
   const frontTexture = textures[cardKey];
   const backTexture = textures["BB"];
+
+  // IMPORTANT:
+  // Do not rotate the entire card to show the back.
+  // A 180° X flip changes the effective yaw direction for some table-edge seats,
+  // which makes face-down cards appear sideways compared to showdown.
+  // Instead, keep the same rotation and just swap which texture is shown on the top face.
+  const topTexture = flipped ? backTexture : frontTexture;
+  const bottomTexture = flipped ? frontTexture : backTexture;
 
   // Create rounded rectangle shape
   const shape = React.useMemo(() => {
@@ -82,7 +90,7 @@ const Card: React.FC<CardProps> = ({ cardKey, textures, position, rotation = [0,
       {/* Front Face */}
       <mesh position={[0, 0, 0.006]} geometry={faceGeometry} receiveShadow castShadow>
         <meshStandardMaterial
-          map={frontTexture}
+          map={topTexture}
           transparent
           color="#cccccc" // Dimmed to prevent blowout
           roughness={0.1}
@@ -92,7 +100,7 @@ const Card: React.FC<CardProps> = ({ cardKey, textures, position, rotation = [0,
       {/* Back Face */}
       <mesh position={[0, 0, -0.006]} rotation={[0, Math.PI, 0]} geometry={faceGeometry} receiveShadow castShadow>
         <meshStandardMaterial
-          map={backTexture}
+          map={bottomTexture}
           transparent
           color="#cccccc" // Dimmed to prevent blowout
           roughness={0.1}

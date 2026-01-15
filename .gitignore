@@ -36,3 +36,7 @@ backend/view/target
 
 *.aux
 *.synctex.gz
+
+#modele
+*.onnx
+*.onnx.data

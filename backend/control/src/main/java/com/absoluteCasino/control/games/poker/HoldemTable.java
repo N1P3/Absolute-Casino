@@ -27,6 +27,7 @@ public class HoldemTable {
     private String lastResultText;
     private long lastResultTimestamp;
     private String lastActionText;
+    private List<Integer> lastWinners = new ArrayList<>();
 
     public HoldemTable(int tableId,
                        int maxSeats,
@@ -71,7 +72,7 @@ public class HoldemTable {
         if (seatPosition == null) {
             return actions;
         }
-        if (currentHand == null) {
+        if (currentHand == null || currentHand.getStreet() == BettingStreet.SHOWDOWN) {
             return actions;
         }
         Seat seat = getSeat(seatPosition);

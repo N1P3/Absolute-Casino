@@ -132,4 +132,45 @@ public class HoldemHandEvaluator {
         }
         return score;
     }
+
+    public String getHandDescription(int score) {
+        int category = score / 1_000_000;
+        int primary = 15 - (score % 1_000_000) / 5_000;
+        
+        return switch (category) {
+            case 1 -> "Straight Flush, " + getRankNameSingular(primary) + " High";
+            case 2 -> "Four of a Kind, " + getRankName(primary);
+            case 3 -> "Full House"; 
+            case 4 -> "Flush, " + getRankNameSingular(primary) + " High";
+            case 5 -> "Straight, " + getRankNameSingular(primary) + " High";
+            case 6 -> "Three of a Kind, " + getRankName(primary);
+            case 7 -> "Two Pair"; 
+            case 8 -> "Pair of " + getRankName(primary);
+            case 9 -> "High Card, " + getRankNameSingular(primary);
+            default -> "Unknown";
+        };
+    }
+
+    private String getRankName(int rank) {
+        return switch (rank) {
+            case 14 -> "Aces";
+            case 13 -> "Kings";
+            case 12 -> "Queens";
+            case 11 -> "Jacks";
+            case 10 -> "Tens";
+            default -> rank + "s";
+        };
+    }
+
+    // Singular version for High Card/Straight
+    private String getRankNameSingular(int rank) {
+        return switch (rank) {
+            case 14 -> "Ace";
+            case 13 -> "King";
+            case 12 -> "Queen";
+            case 11 -> "Jack";
+            case 10 -> "Ten";
+            default -> String.valueOf(rank);
+        };
+    }
 }

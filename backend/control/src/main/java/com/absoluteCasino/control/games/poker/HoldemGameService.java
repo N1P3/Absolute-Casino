@@ -165,6 +165,8 @@ public class HoldemGameService {
         shoe = new CardsShoe(1);
         HoldemHand hand = new HoldemHand(tableId, shoe);
         table.setCurrentHand(hand);
+        table.getLastWinners().clear();
+        table.setLastResultText(null);
 
         List<Seat> activeSeats = table.getSeats().stream()
                 .filter(Seat::isOccupied)
@@ -554,6 +556,7 @@ public class HoldemGameService {
 
         long pot = hand.getPot();
         String resultText = "Nikt nie wygrał";
+        table.getLastWinners().clear();
 
         if (winner != null) {
             Seat winnerSeat = table.getSeats().stream()
@@ -563,9 +566,11 @@ public class HoldemGameService {
             if (winnerSeat != null) {
                 winnerSeat.setStack(winnerSeat.getStack() + pot);
                 resultText = "Seat " + winner.getSeatPosition() + " wygrał " + pot;
+                table.getLastWinners().add(winner.getSeatPosition());
             }
         }
 
+        hand.setStreet(BettingStreet.SHOWDOWN);
         finishHandAndScheduleNext(table, resultText);
     }
 
@@ -601,6 +606,7 @@ public class HoldemGameService {
         }
 
         Map<Integer, Long> wins = new HashMap<>();
+        table.getLastWinners().clear();
 
         for (SidePot pot : pots) {
             List<PlayerHandState> eligible = contenders.stream()
@@ -640,6 +646,9 @@ public class HoldemGameService {
                     long win = share + (i == 0 ? remainder : 0);
                     winnerSeat.setStack(winnerSeat.getStack() + win);
                     wins.merge(ps.getSeatPosition(), win, Long::sum);
+                    if (!table.getLastWinners().contains(ps.getSeatPosition())) {
+                        table.getLastWinners().add(ps.getSeatPosition());
+                    }
                 }
             }
         }
@@ -714,18 +723,19 @@ public class HoldemGameService {
     private void finishHandAndScheduleNext(HoldemTable table, String resultText) {
         table.setLastResultText(resultText);
         table.setLastResultTimestamp(System.currentTimeMillis());
-        endHandAndMoveWaitingPlayers(table);
 
-        // Notify immediately to show showdown results
+        // Notify immediately to show showdown results and cards
         notifyUpdate(table.getTableId());
 
         int tableId = table.getTableId();
         new Thread(() -> {
             try {
-                Thread.sleep(3000L);
+                // Wait for players to see the result and cards
+                Thread.sleep(5000L);
             } catch (InterruptedException ignored) {
             }
             try {
+                endHandAndMoveWaitingPlayers(table);
                 startHandIfPossible(tableId);
                 // Notify after starting new hand (or not) to update state
                 notifyUpdate(tableId);

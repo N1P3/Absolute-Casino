@@ -45,7 +45,7 @@ const Scene: React.FC<SceneProps> = ({ children }) => {
       // }}
     >
       {/* Camera: Top-down with slight angle for optimal table view */}
-      <PerspectiveCamera makeDefault position={[0, 8, 7]} fov={40} onUpdate={(c) => c.lookAt(0, 0, 0)} />
+      <PerspectiveCamera makeDefault position={[0, 7, 5]} fov={50} onUpdate={(c) => c.lookAt(0, -1, 0)} />
 
       {/* Background color - dark casino room */}
       {/* <color attach="background" args={["#15151a"]} /> */}
@@ -185,7 +185,7 @@ const Scene: React.FC<SceneProps> = ({ children }) => {
           <Bloom intensity={0.1} luminanceThreshold={0.9} luminanceSmoothing={0.1} mipmapBlur /> */}
         {/* </EffectComposer> */}
       </Suspense>
-      <OrbitControls makeDefault />
+      {/* <OrbitControls makeDefault /> */}
     </Canvas>
   );
 };

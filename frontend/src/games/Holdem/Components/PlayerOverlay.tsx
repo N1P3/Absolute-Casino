@@ -11,12 +11,17 @@ type PlayerOverlayProps = {
 const PlayerOverlay = ({ player, isActive, isHero, dealer }: PlayerOverlayProps) => {
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border backdrop-blur-md shadow-xl transition-all duration-300 w-32 ${
-        isHero ? "bg-primary/10 border-primary/50 shadow-[0_0_20px_rgba(234,179,8,0.15)]" : "bg-black/60 border-white/10"
+      className={`relative rounded-xl border backdrop-blur-md shadow-xl transition-all duration-300 w-32 ${
+        player.winner
+          ? "bg-yellow-500/20 border-yellow-500 shadow-[0_0_30px_rgba(234,179,8,0.4)] scale-110 z-50"
+          : isHero
+            ? "bg-primary/10 border-primary/50 shadow-[0_0_20px_rgba(234,179,8,0.15)]"
+            : "bg-black/60 border-white/10"
       } ${isActive ? "ring-2 ring-primary ring-offset-2 ring-offset-black" : ""}`}
     >
+      {player.winner && <div className="absolute -top-2 -right-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg animate-bounce z-20">WINNER</div>}
       {player.folded && (
-        <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center rounded-xl">
           <span className="text-white/50 font-bold uppercase tracking-widest text-xs">Pas</span>
         </div>
       )}

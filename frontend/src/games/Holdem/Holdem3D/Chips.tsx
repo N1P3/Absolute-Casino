@@ -19,6 +19,8 @@ const SingleChip = ({ value, position, index }: { value: number; position: [numb
   // Load texture
   const texture = useTexture(textureUri);
 
+  const rotationY = useMemo(() => Math.random() * Math.PI, []);
+
   // Clone texture to ensure unique offset/rotation if needed, though not strictly necessary here
   // But we do want to ensure encoding is correct if we were using sRGB, but for data URI it's usually linear or sRGB depending on usage.
   // texture.colorSpace = THREE.SRGBColorSpace; // If using R3F v8+ / Three r152+
@@ -29,7 +31,7 @@ const SingleChip = ({ value, position, index }: { value: number; position: [numb
         args={[0.15, 0.15, 0.05, 32]}
         castShadow
         receiveShadow
-        rotation={[0, Math.random() * Math.PI, 0]} // Random rotation for realism
+        rotation={[0, rotationY, 0]} // Random rotation for realism
       >
         {/* Side Material - Solid Color */}
         <meshStandardMaterial attach="material-0" color={color} roughness={0.2} />

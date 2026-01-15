@@ -5,7 +5,7 @@ import { HoldemGameState, HoldemResponse } from "./types";
 // 3D Imports
 import GameControls from "./Components/Controls";
 import GameHeader from "./Components/Header";
-import Results from "./Components/Results";
+import ActionLog from "./Components/ActionLog";
 import Game3DContent from "./Holdem3D/Game3DContent";
 import Scene from "./Holdem3D/Scene";
 import { useActionTimer, useHoldemSocket } from "./hooks";
@@ -18,7 +18,6 @@ interface HoldemGameProps {
 
 const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
   const { toast } = useToast();
-  const [showResultOverlay, setShowResultOverlay] = useState(false);
 
   // Initial State
   const [gameState, setGameState] = useState<HoldemGameState>({
@@ -36,6 +35,9 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
     gameOver: false,
     availableActions: [],
     lastAction: null,
+    handDescription: null,
+    handStrength: null,
+    actionLog: [],
   });
 
   // 1. WebSocket Hook
@@ -43,12 +45,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
     const players = resp.players || [];
     const inHand = !!resp.street;
     const isMyTurn = players.some((p) => p.you && p.currentTurn);
-
-    // Auto-show result overlay if game over
-    if (!inHand && resp.result) {
-      setShowResultOverlay(true);
-      setTimeout(() => setShowResultOverlay(false), NEXT_HAND_DELAY_MS);
-    }
+    const isShowdown = resp.street === GAME_STAGES.SHOWDOWN;
 
     setGameState({
       state: !players.length ? "idle" : !inHand ? "waiting" : "playing",
@@ -61,10 +58,13 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
       dealerSeat: resp.dealerSeat ?? null,
       isMyTurn,
       players,
-      gameOver: !inHand && !!resp.result,
-      result: !inHand ? (resp.result ?? null) : null,
+      gameOver: (!inHand && !!resp.result) || isShowdown,
+      result: resp.result ?? null,
       availableActions: resp.availableActions || [],
       lastAction: resp.lastAction ?? null,
+      handDescription: resp.handDescription ?? null,
+      handStrength: resp.handStrength ?? null,
+      actionLog: resp.actionLog || [],
     });
   }, []);
 
@@ -96,22 +96,23 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
   // 4. Auto Next Hand logic
   useEffect(() => {
     if (gameState.state === "waiting") {
+      const delay = gameState.result ? 5000 : NEXT_HAND_DELAY_MS;
       const timer = setTimeout(() => {
         sendCommand({ command: "start_hand", tableId });
-      }, NEXT_HAND_DELAY_MS);
+      }, delay);
       return () => clearTimeout(timer);
     }
-  }, [gameState.state, tableId, sendCommand]);
+  }, [gameState.state, gameState.result, tableId, sendCommand]);
 
   return (
     <div className="flex flex-col h-screen bg-background relative overflow-hidden">
       <GameHeader tableId={tableId} pot={gameState.pot} stage={gameState.gameStage} onLeave={handleLeave} onAddBot={() => sendCommand({ command: "add_bot", tableId })} />
 
       <div className="flex-1 relative">
+        <ActionLog actions={gameState.actionLog} />
         <Scene>
           <Game3DContent state={gameState} />
         </Scene>
-        <Results result={gameState.result} visible={showResultOverlay} />
       </div>
 
       <GameControls gameState={gameState} onAction={handleAction} secondsLeft={secondsLeft} />
