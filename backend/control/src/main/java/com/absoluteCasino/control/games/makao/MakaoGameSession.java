@@ -19,7 +19,15 @@ public class MakaoGameSession extends GameSession {
         this.makaoGame = new MakaoGame();
     }
 
-    public void setGameRoom(MakaoGameRoom gameRoom) { this.gameRoom = gameRoom; }
+    public void setGameRoom(MakaoGameRoom gameRoom) { 
+        this.gameRoom = gameRoom;
+        // Reset AI discard tracking for new game
+        makaoAI.resetGame();
+        // Add initial table card to discard pile
+        if (gameRoom != null && gameRoom.getGame() != null) {
+            makaoAI.addToDiscard(gameRoom.getGame().getTableCard());
+        }
+    }
     public MakaoGameRoom getGameRoom() { return gameRoom; }
 
     public MakaoGameResponse playCard(Integer playerId, java.util.List<Integer> cardIndices, String chosenSuit, String chosenNumber, String chosenValue) {
@@ -51,6 +59,9 @@ public class MakaoGameSession extends GameSession {
         if (!result.success) {
             return error(result.errorMessage);
         }
+
+        // Track played cards for AI observation
+        makaoAI.addToDiscard(cardsToPlay);
 
         // Remove cards from hand (using sorted indices to avoid shifting issues)
         java.util.List<Integer> sortedIndices = new java.util.ArrayList<>(cardIndices);
@@ -193,13 +204,17 @@ public class MakaoGameSession extends GameSession {
                 int nextIdx = (gameRoom.getCurrentPlayerIndex() + 1) % gameRoom.getPlayers().size();
                 MakaoPlayer nextPlayer = gameRoom.getPlayers().get(nextIdx);
                 
-                java.util.List<String> cards = new java.util.ArrayList<>();
-                cards.add(action.card);
+                // Multi-card support - use action.cards directly
+                java.util.List<String> cards = action.cards;
                 
                 MakaoGame.PlayResult result = game.playCards(cards, action.chosenSuit, action.chosenNumber, current.getUserId(), nextPlayer.getUserId());
                 
                 if (result.success) {
-                    current.removeCard(action.card);
+                    // Remove all played cards
+                    for (String card : cards) {
+                        current.removeCard(card);
+                        makaoAI.addToDiscard(card);
+                    }
                     if (current.getHand().isEmpty()) {
                         gameRoom.setGameActive(false);
                         gameRoom.setWinner(current);
