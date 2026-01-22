@@ -79,7 +79,7 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
         toast({ title: "Błąd", description: e.message || "Action failed", variant: "destructive" });
       }
     },
-    [sendCommand, tableId, toast]
+    [sendCommand, tableId, toast],
   );
 
   const handleLeave = useCallback(async () => {
@@ -106,7 +106,19 @@ const HoldemGame: React.FC<HoldemGameProps> = ({ tableId, onLeaveTable }) => {
 
   return (
     <div className="flex flex-col h-screen bg-background relative overflow-hidden">
-      <GameHeader tableId={tableId} pot={gameState.pot} stage={gameState.gameStage} onLeave={handleLeave} onAddBot={() => sendCommand({ command: "add_bot", tableId })} />
+      <GameHeader
+        tableId={tableId}
+        pot={gameState.pot}
+        stage={gameState.gameStage}
+        onLeave={handleLeave}
+        onAddBot={() => {
+          if (gameState.players.length >= 5) {
+            toast({ title: "Limit graczy", description: "Maksymalna liczba graczy to 5", variant: "destructive" });
+            return;
+          }
+          sendCommand({ command: "add_bot", tableId });
+        }}
+      />
 
       <div className="flex-1 relative">
         <ActionLog actions={gameState.actionLog} />

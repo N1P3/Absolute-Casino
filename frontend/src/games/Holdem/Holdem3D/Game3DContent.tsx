@@ -18,7 +18,7 @@ const Game3DContent = ({ state }: { state: HoldemGameState }) => {
   // Helper to calculate stack position relative to player
   const getStackPosition = (playerPos: [number, number, number], centerPos: [number, number, number]) => {
     const cardsPos = calculateCardsPosition(playerPos, centerPos, false)[0].positon;
-    return [cardsPos[0] - 0.5, cardsPos[1], cardsPos[2]] as [number, number, number];
+    return [cardsPos[0] + 0.7, cardsPos[1], cardsPos[2]] as [number, number, number];
   };
 
   return (
