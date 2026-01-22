@@ -91,7 +91,7 @@ const GameControls = ({ gameState, onAction, secondsLeft }: { gameState: HoldemG
                   Check
                 </Button>
                 <Button onClick={() => onAction("call")} disabled={!canAction("call")} className="bg-green-600 hover:bg-green-700 min-w-[80px]">
-                  Call
+                  Call {gameState.currentBet || 0}
                 </Button>
 
                 {(canAction("raise") || canAction("bet")) && (
@@ -108,11 +108,12 @@ const GameControls = ({ gameState, onAction, secondsLeft }: { gameState: HoldemG
             </div>
           )}
 
-          {/* Last Action Notification */}
+          {/* Last Action Notification - Enhanced */}
           {gameState.lastAction && !gameState.isMyTurn && (
-            <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-xl animate-in slide-in-from-bottom-4">
-              <span className="text-white font-medium text-sm">
-                <span className="text-muted-foreground">Ostatnia akcja:</span> {gameState.lastAction}
+            <div className="bg-gradient-to-r from-primary/20 to-blue-500/20 backdrop-blur-xl px-6 py-3 rounded-2xl border-2 border-primary/50 shadow-2xl shadow-primary/20 animate-in slide-in-from-bottom-4">
+              <span className="text-white font-bold text-lg flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                {gameState.lastAction}
               </span>
             </div>
           )}
