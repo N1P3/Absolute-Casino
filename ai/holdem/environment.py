@@ -92,8 +92,9 @@ class PokerKitEnvironment:
         )
         
         # Track initial stacks for reward computation
-        self.initial_stacks = list(self.state.stacks)
-        
+        # Use original stacks before blinds were posted
+        self.initial_stacks = list(stacks)
+
         # Build initial state representation
         return self._build_state_dict()
     
