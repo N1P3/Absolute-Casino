@@ -279,49 +279,57 @@ class ComparisonEngine:
 
 def main():
     print("Main function started.")
-    # Setup paths
-    base_dir = Path("checkpoints_big_2")
-    model_path = base_dir / "best_model.pt"
-    rl_model_path = base_dir / "best_model_rl_big.pt"
+
+    # Define paths holding the models
+    # We check relative to current dir (if running from ai/holdem) or from project root
+
+    # Path to original Supervised Learning model
+    sl_dir_name = "checkpoints_big_2"
+    sl_model_name = "best_model.pt"
+
+    # Path to new Reinforcement Learning model
+    rl_dir_name = "checkpoints_rl_new_plus_warstwa"
+    rl_model_name = "best_model.pt"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
-    # Fix relative paths if run from root
-    if not base_dir.exists():
-        # Try finding it relative to ai/holdem
-        maybe_base = Path("ai/holdem/checkpoints_big_2")
-        if maybe_base.exists():
-            base_dir = maybe_base
-            model_path = base_dir / "best_model.pt"
-            rl_model_path = base_dir / "best_model_rl_big.pt"
-            print(f"Corrected path to {base_dir}")
+    # Resolve SL path
+    sl_path = Path(sl_dir_name) / sl_model_name
+    if not sl_path.exists():
+        sl_path = Path(f"ai/holdem/{sl_dir_name}") / sl_model_name
+
+    # Resolve RL path
+    rl_path = Path(rl_dir_name) / rl_model_name
+    if not rl_path.exists():
+        rl_path = Path(f"ai/holdem/{rl_dir_name}") / rl_model_name
 
     players = {}
 
-    # Load Models
-    if model_path.exists():
-        print(f"Loading {model_path}...")
+    # Load Supervised Model
+    if sl_path.exists():
+        print(f"Loading Supervised Model from {sl_path}...")
         try:
-            players[0] = PokerInferenceEngine(str(model_path), device=device)
+            players[0] = PokerInferenceEngine(str(sl_path), device=device)
             players[0].name = "Supervised Model"
         except Exception as e:
             print(f"Failed to load Supervised Model: {e}")
             players[0] = HeuristicPokerPlayer(name="Heuristic Backup 1")
     else:
-        print(f"Warning: {model_path} not found.")
+        print(f"Warning: Supervised model at {sl_path} not found.")
         players[0] = HeuristicPokerPlayer(name="Heuristic Backup 1")
 
-    if rl_model_path.exists() & False:
-        print(f"Loading {rl_model_path}...")
+    # Load RL Model
+    if rl_path.exists():
+        print(f"Loading RL Model from {rl_path}...")
         try:
-            players[1] = PokerInferenceEngine(str(rl_model_path), device=device)
+            players[1] = PokerInferenceEngine(str(rl_path), device=device)
             players[1].name = "RL Model"
         except Exception as e:
             print(f"Failed to load RL Model: {e}")
             players[1] = HeuristicPokerPlayer(name="Heuristic Backup 2")
     else:
-        print(f"Warning: {rl_model_path} not found.")
+        print(f"Warning: RL model at {rl_path} not found.")
         players[1] = HeuristicPokerPlayer(name="Heuristic Backup 2")
 
     # Add Heuristic Player

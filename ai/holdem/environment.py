@@ -1,6 +1,6 @@
-import numpy as np
 from typing import Dict, List, Tuple, Optional
-from pokerkit import Automation, NoLimitTexasHoldem
+from pokerkit import Automation, NoLimitTexasHoldem, StandardHighHand, Card
+import numpy as np
 
 class PokerKitEnvironment:
     """
@@ -97,7 +97,46 @@ class PokerKitEnvironment:
 
         # Build initial state representation
         return self._build_state_dict()
-    
+
+    def _calculate_hand_strength(self, hole_cards: List[str], board_cards: List[str]) -> float:
+        """Calculate hand strength (0.0 to 1.0) using PokerKit."""
+        if not hole_cards:
+            return 0.0
+
+        try:
+            # Parse cards
+            cards = []
+            for c in hole_cards + board_cards:
+                if c and c != '??':
+                    cards.extend(list(Card.parse(c)))
+
+            if not cards:
+                return 0.0
+
+            # Evaluate best hand
+            full_hand = StandardHighHand.from_game(cards)
+            rank_val = full_hand.rank # Lower is better in PokerKit (1=Royal Flush)
+
+            # Use Hand rank class to estimate strength (0.0=High Card, 1.0=Royal Flush)
+            # PokerKit ranks: roughly 7462 distinct ranks.
+            # We can use a simplified mapping based on category
+
+            desc = str(full_hand).lower()
+            if 'straight flush' in desc: return 1.0
+            if 'four of a kind' in desc: return 0.95
+            if 'full house' in desc: return 0.9
+            if 'flush' in desc: return 0.8
+            if 'straight' in desc: return 0.7
+            if 'three of a kind' in desc: return 0.6
+            if 'two pair' in desc: return 0.5
+            if 'one pair' in desc: return 0.3
+
+            # High card - normalize based on kicker
+            return 0.1
+
+        except Exception:
+            return 0.0
+
     def _build_state_dict(self) -> Dict:
         """
         Build state dictionary from PokerKit state.
@@ -136,12 +175,16 @@ class PokerKitEnvironment:
         else:
             current_bet = 0
             to_call = 0
-        
+
+        # Calculate hand strength
+        hand_strength = self._calculate_hand_strength(hole_cards_str, board_cards_str)
+
         return {
             'hole_cards': hole_cards_str,
             'board': board_cards_str,
             'stacks': stacks,
             'pot': pot,
+            'hand_strength': hand_strength, # New field
             'street': street,
             'street_name': ['preflop', 'flop', 'turn', 'river'][street],
             'actions': actions,

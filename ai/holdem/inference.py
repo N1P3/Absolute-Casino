@@ -22,6 +22,7 @@ import json
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
+from pokerkit import StandardHighHand, Card
 
 from model import create_model, UNKNOWN_CARD
 
@@ -82,7 +83,6 @@ class PokerInferenceEngine:
                 'dim_feedforward': 2048,
                 'dropout': 0.1,
             }
-            state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
         # Create model
         print("Creating model...")
         self.model = create_model(model_config)
@@ -96,7 +96,27 @@ class PokerInferenceEngine:
             # Remove _orig_mod. prefix from all keys
             state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
         
-        self.model.load_state_dict(state_dict)
+        # --- WEIGHT SURGERY ---
+        # Handle scalar_encoder size mismatch (11 -> 12) due to added hand_strength feature
+        if 'scalar_encoder.0.weight' in state_dict:
+            old_weight = state_dict['scalar_encoder.0.weight']
+            if old_weight.shape[1] == 11:
+                print("  → Patching model weights: expanding scalar_encoder input from 11 to 12 (adding hand_strength)...")
+                new_weight = torch.zeros(old_weight.shape[0], 12, device=old_weight.device)
+                # Copy existing weights for first 11 features
+                new_weight[:, :11] = old_weight
+                # Initialize new feature (hand_strength) with small random weights
+                torch.nn.init.normal_(new_weight[:, 11], mean=0.0, std=0.01)
+                state_dict['scalar_encoder.0.weight'] = new_weight
+                print("    ✓ Patched scalar_encoder weights")
+
+        try:
+            self.model.load_state_dict(state_dict)
+        except RuntimeError as e:
+            print(f"Standard load failed: {e}")
+            print("Attempting to load with strict=False...")
+            self.model.load_state_dict(state_dict, strict=False)
+
         self.model = self.model.to(self.device)
         self.model.eval()  # Set to evaluation mode
         
@@ -142,7 +162,41 @@ class PokerInferenceEngine:
         suit_idx = card_idx % 4
         
         return self.ranks[rank_idx] + self.suits[suit_idx]
-    
+
+    def _get_hand_strength(self, hole_cards: List[str], board_cards: List[str]) -> float:
+        """
+        Estimate hand strength (0.0 - 1.0) using PokerKit.
+        Simple heuristic mapping based on hand rank.
+        """
+        if not hole_cards:
+            return 0.0
+
+        try:
+            # Parse cards
+            cards = []
+            for c in hole_cards + board_cards:
+                if c and c != '??':
+                    cards.extend(list(Card.parse(c)))
+
+            if not cards:
+                return 0.0
+
+            full_hand = StandardHighHand.from_game(cards)
+            desc = str(full_hand).lower()
+
+            # Rough strength mapping
+            if 'straight flush' in desc: return 1.0
+            if 'four of a kind' in desc: return 0.95
+            if 'full house' in desc: return 0.9
+            if 'flush' in desc: return 0.8
+            if 'straight' in desc: return 0.7
+            if 'three of a kind' in desc: return 0.6
+            if 'two pair' in desc: return 0.5
+            if 'one pair' in desc: return 0.3
+            return 0.1 # High card
+        except:
+             return 0.0
+
     def encode_hand_state(self, hand_state: Dict) -> dict[str, torch.Tensor]:
         """
         Encode hand state to model input format.
@@ -184,6 +238,13 @@ class PokerInferenceEngine:
         pot = float(hand_state.get('pot', 0.0))
         pot_encoding = np.array([pot / max(starting_stack, 1.0)], dtype=np.float32)
 
+        # Encode hand strength (0.0 - 1.0)
+        if 'hand_strength' in hand_state:
+            strength = float(hand_state['hand_strength'])
+        else:
+            strength = self._get_hand_strength(hole_cards, board_cards)
+        strength_encoding = np.array([strength], dtype=np.float32)
+
         # Encode street (one-hot: preflop, flop, turn, river)
         street = int(hand_state.get('street', 0))
         street_encoding = np.zeros(4, dtype=np.float32)
@@ -194,9 +255,10 @@ class PokerInferenceEngine:
             np.array(card_ids, dtype=np.float32),  # 7 card IDs (ints but stored as float)
             stacks_encoding,                      # 6
             pot_encoding,                         # 1
+            strength_encoding,                    # 1
             street_encoding,                      # 4
-        ])  # Total: 18
-        
+        ])  # Total: 19
+
         # Encode action sequence
         # Action format: [player_one_hot (6) + action_type_one_hot (3) + amount (1)] = 10 features
         actions = hand_state.get('actions', [])
@@ -247,13 +309,7 @@ class PokerInferenceEngine:
             top_k: If set, return top-k actions with probabilities
         
         Returns:
-            Dictionary containing:
-                - action: Predicted action name ('FOLD', 'CALL', 'RAISE')
-                - action_idx: Action index (0, 1, 2)
-                - probability: Probability of predicted action
-                - raise_amount: Predicted raise amount (if action=RAISE)
-                - all_probabilities: Probabilities for all actions
-                - top_k_actions: (Optional) Top-k actions with probabilities
+            Dictionary containing result.
         """
         # Encode hand state
         batch = self.encode_hand_state(hand_state)
@@ -261,6 +317,30 @@ class PokerInferenceEngine:
         # Forward pass
         action_logits, value_pred = self.model(batch)
         
+        # --- HYBRID AI LOGIC ---
+        valid_actions = hand_state.get('valid_actions', None)
+
+        # 1. Mask invalid actions
+        if valid_actions is not None:
+            # Create mask: -inf for invalid, 0 for valid
+            mask = torch.full_like(action_logits, -1e9)
+            for action_idx in valid_actions:
+                mask[0, action_idx] = 0.0
+            action_logits = action_logits + mask
+
+        # 2. Safety Net: Don't fold monster hands
+        hole_cards = hand_state.get('hole_cards', [])
+        board_cards = hand_state.get('board', [])
+        if len(board_cards) >= 3: # Only post-flop
+            strength = self._get_hand_strength(hole_cards, board_cards)
+            # If strength > 0.8 (Flush or better) and we can check/call or raise
+            if strength >= 0.8:
+                # Disallow folding if we have other options
+                if valid_actions and (1 in valid_actions or 2 in valid_actions):
+                    action_logits[0, 0] = -1e9 # Mask FOLD
+
+        # -----------------------
+
         # Apply temperature scaling
         action_logits = action_logits / temperature
         
@@ -270,6 +350,11 @@ class PokerInferenceEngine:
         
         # Get top prediction
         action_idx = action_probs.argmax(dim=1).item()
+
+        # Final fallback if model somehow still picked invalid (e.g. all masked)
+        if valid_actions and action_idx not in valid_actions:
+             action_idx = valid_actions[0]
+
         action_name = self.action_names[action_idx]
         action_prob = action_probs_numpy[action_idx]
         
@@ -294,7 +379,7 @@ class PokerInferenceEngine:
                 'RAISE': float(action_probs_numpy[2]),
             },
         }
-        
+
         # Add top-k if requested
         if top_k is not None:
             top_k_indices = np.argsort(action_probs_numpy)[::-1][:top_k]

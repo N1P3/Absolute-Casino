@@ -30,7 +30,7 @@ class PluribusPokerTransformer(nn.Module):
     def __init__(
         self,
         # Input dimensions
-        static_state_dim=18,  # Hole cards (2 IDs) + board (5 IDs) + stacks (6) + pot (1) + street (4) = 18 features
+        static_state_dim=19,  # Hole cards (2 IDs) + board (5 IDs) + stacks (6) + pot (1) + street (4) + strength (1) = 19
         action_seq_length=20,
         action_seq_dim=10,  # Player (6) + action type (3) + amount (1)
         
@@ -64,9 +64,9 @@ class PluribusPokerTransformer(nn.Module):
         self.register_buffer('card_position_indices', torch.arange(7))
         self.register_buffer('card_stage_indices', torch.tensor([0, 0, 1, 1, 1, 2, 3]))
         
-        # Scalar features (stacks, pot, street) become their own token
+        # Scalar features (stacks, pot, street, strength) become their own token
         self.scalar_encoder = nn.Sequential(
-            nn.Linear(11, d_model),
+            nn.Linear(12, d_model),
             nn.GELU(),
             nn.Dropout(dropout),
             nn.LayerNorm(d_model),
@@ -171,7 +171,7 @@ class PluribusPokerTransformer(nn.Module):
         
         # Split static_state into card IDs and other scalar features
         ids = static_state[:, :7].long()  # 2 hole card IDs + 5 board IDs
-        other_features = static_state[:, 7:]  # [B, 11]
+        other_features = static_state[:, 7:]  # [B, 12] (stacks + pot + street + strength)
 
         # Split IDs into rank and suit (card ID = rank*4 + suit)
         rank_ids = torch.div(ids, 4, rounding_mode='floor')

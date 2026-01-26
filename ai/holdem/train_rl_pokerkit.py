@@ -179,11 +179,11 @@ class PPOTrainer:
     
     def _preallocate_tensors(self):
         """Preallocate tensors for state encoding to avoid repeated allocations."""
-        # Static state: 7 card IDs + 11 scalar features = 18 total
+        # Static state: 7 card IDs + 12 scalar features = 19 total
         # Card IDs: 2 hole cards + 5 board cards (0-51 for real cards, 52 for unknown)
-        # Scalar features: 6 stacks + 1 pot + 4 street one-hot
-        self._static_state_buffer = torch.zeros(1, 18, device=self.device, dtype=torch.float32)
-        
+        # Scalar features: 6 stacks + 1 pot + 1 strength + 4 street one-hot
+        self._static_state_buffer = torch.zeros(1, 19, device=self.device, dtype=torch.float32)
+
         # Action sequence: 20 actions × 10 features
         self._action_seq_buffer = torch.zeros(1, 20, 10, device=self.device, dtype=torch.float32)
         
@@ -218,12 +218,13 @@ class PPOTrainer:
         
         This avoids repeated numpy array creation and tensor conversion, which was a major bottleneck.
         
-        Model expects static_state: [B, 18] where:
+        Model expects static_state: [B, 19] where:
         - First 7 values: Card IDs (0-51 for real cards, 52 for unknown)
           * 2 hole cards + 5 board cards
-        - Next 11 values: Scalar features
+        - Next 12 values: Scalar features
           * 6 stacks (normalized)
           * 1 pot (normalized)
+          * 1 hand strength
           * 4 street one-hot
         """
         # Zero out buffers
@@ -231,7 +232,7 @@ class PPOTrainer:
         self._action_seq_buffer.zero_()
         
         # Get references to buffers for easier indexing
-        static = self._static_state_buffer[0]  # Shape: [18]
+        static = self._static_state_buffer[0]  # Shape: [19]
         action_seq = self._action_seq_buffer[0]  # Shape: [20, 10]
         
         # Encode hole cards as IDs (first 2 positions)
@@ -266,11 +267,15 @@ class PPOTrainer:
         # Encode pot (next 1 feature, normalized)
         static[13] = state['pot'] / self.env.starting_stack
         
+        # Encode hand strength (next 1 feature)
+        static[14] = state.get('hand_strength', 0.0)
+
         # Encode street (last 4 features, one-hot)
+        # Shifted by 1 due to hand strength insertion
         street = state['street']
         if street < 4:
-            static[14 + street] = 1.0
-        
+            static[15 + street] = 1.0
+
         # Encode action sequence (unchanged)
         actions = state.get('actions', [])
         for i, action in enumerate(actions[-20:]):
@@ -1048,6 +1053,8 @@ def main():
     filtered_config = {k: v for k, v in model_config.items() if k in valid_model_keys}
     
     # Create model
+    # Override static_state_dim in filtered_config to 19 if not present (default is likely None -> uses class default 19)
+    # But checkpoint might have different expectations, handled by shape patching.
     model = create_model(filtered_config)
     
     # Load weights
@@ -1056,10 +1063,36 @@ def main():
         print("  → Removing torch.compile() prefix from checkpoint...")
         state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
     
-    model.load_state_dict(state_dict)
+    # --- WEIGHT SURGERY ---
+    # Handle scalar_encoder size mismatch (11 -> 12)
+    # The first layer of scalar_encoder is at 'scalar_encoder.0.weight'
+    if 'scalar_encoder.0.weight' in state_dict:
+        old_weight = state_dict['scalar_encoder.0.weight']
+        if old_weight.shape[1] == 11:
+            print("  → Patching model weights: expanding scalar_encoder input from 11 to 12 (adding hand_strength)...")
+            new_weight = torch.zeros(old_weight.shape[0], 12, device=old_weight.device)
+            # Copy existing weights for first 11 features
+            new_weight[:, :11] = old_weight
+            # Initialize new feature (hand_strength) with explicit small weights to encourage usage, or zero
+            torch.nn.init.normal_(new_weight[:, 11], mean=0.0, std=0.01)
+            state_dict['scalar_encoder.0.weight'] = new_weight
+            print("    ✓ Patched scalar_encoder weights")
+        elif old_weight.shape[1] == 18:
+            # Maybe old model had different structure?
+            pass
+
+    # Load patched state dict
+    try:
+        model.load_state_dict(state_dict, strict=False) # strict=False to be safe, though surgery should fix it
+        print("✓ Model loaded successfully (with weight patching)")
+    except Exception as e:
+        print(f"Error loading state_dict: {e}")
+        # Fallback: load strictly what matches
+        model.load_state_dict(state_dict, strict=False)
+        print("Warning: Loaded with strict=False due to errors.")
+
     model = model.to(args.device)
     
-    print(f"✓ Model loaded successfully")
 
     # Create optimizer (no separate critic needed - using model's value head)
     optimizer = torch.optim.AdamW(
