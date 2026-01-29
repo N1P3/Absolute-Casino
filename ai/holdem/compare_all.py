@@ -283,13 +283,18 @@ def main():
     # Define paths holding the models
     # We check relative to current dir (if running from ai/holdem) or from project root
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--games', type=int, default=5000, help='Number of games to simulate')
+    parser.add_argument('--rl-model', type=str, default="best_model.pt", help='Name of the RL model file (default: best_model.pt)')
+    args = parser.parse_args()
+
     # Path to original Supervised Learning model
     sl_dir_name = "checkpoints_big_2"
     sl_model_name = "best_model.pt"
 
     # Path to new Reinforcement Learning model
-    rl_dir_name = "checkpoints_rl_new_plus_warstwa"
-    rl_model_name = "best_model.pt"
+    rl_dir_name = "checkpoints_rl_auto"
+    rl_model_name = args.rl_model
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
@@ -341,7 +346,7 @@ def main():
     print(f"Players: {[p.name for p in final_players.values()]}")
 
     engine = ComparisonEngine(final_players)
-    engine.run_tournament(num_games=500)
+    engine.run_tournament(num_games=args.games)
 
 if __name__ == "__main__":
     main()

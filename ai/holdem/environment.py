@@ -103,6 +103,53 @@ class PokerKitEnvironment:
         if not hole_cards:
             return 0.0
 
+        # PREFLOP HEURISTIC
+        if not board_cards and len(hole_cards) == 2:
+            try:
+                ranks_order = '23456789TJQKA'
+                c1, c2 = hole_cards[0], hole_cards[1]
+                # Filter out unknown cards
+                if c1[0] not in ranks_order or c2[0] not in ranks_order:
+                    return 0.1
+
+                r1, r2 = ranks_order.index(c1[0]), ranks_order.index(c2[0])
+                s1, s2 = c1[1], c2[1]
+
+                is_pair = r1 == r2
+                is_suited = s1 == s2
+                high, low = max(r1, r2), min(r1, r2)
+
+                if is_pair:
+                    # Pairs are strong: 22 -> 0.55, AA -> 1.0
+                    return 0.55 + (high / 12.0) * 0.45
+
+                # Base score from high card: 0.2 (2) to 0.6 (A)
+                score = 0.2 + (high / 12.0) * 0.4
+
+                # Adjust for kicker strength
+                if low >= 9: # Kicker is J+
+                    score += 0.1
+                elif low >= 7: # Kicker is 9+
+                    score += 0.05
+
+                # Adjust for suited
+                if is_suited:
+                    score += 0.08
+
+                # Gap penalty / Connector bonus
+                gap = high - low - 1
+                if gap == 0: score += 0.05 # Connector
+                elif gap == 1: score += 0.02 # 1-gapper
+                elif gap >= 3: score -= 0.05 # Big gap (trash penalty)
+
+                # Trash correction for low cards
+                if high < 8 and not is_suited and gap > 1:
+                    score -= 0.1
+
+                return max(0.1, min(0.9, score)) # Cap non-pairs at 0.9
+            except:
+                pass # Fallback to existing logic if parsing fails
+
         try:
             # Parse cards
             cards = []

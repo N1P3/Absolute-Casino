@@ -56,16 +56,14 @@ from pathlib import Path
 from tqdm import tqdm
 from datetime import datetime
 from collections import defaultdict, deque
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 
 # PokerKit imports
 from pokerkit import Automation, NoLimitTexasHoldem
 from environment import PokerKitEnvironment
 
 from model import create_model, PluribusPokerTransformer
-
-
-
+from heuristic_agent import HeuristicPokerPlayer
 
 
 class PPOTrainer:
@@ -100,11 +98,14 @@ class PPOTrainer:
         use_amp: bool = False,
         temperature: float = 1.0,
         baseline_frac: float = 0.15,
-        randomize_stacks: bool = True,
+        randomize_stacks: bool = False,
+        model_config: Optional[Dict] = None,
     ):
+        self.heuristic_opponent = HeuristicPokerPlayer()
         self.model = model
         self.optimizer = optimizer
         self.device = device
+        self.model_config = model_config
         self.gamma = gamma
         self.gae_lambda = gae_lambda
         self.clip_epsilon = clip_epsilon
@@ -192,14 +193,17 @@ class PPOTrainer:
     def _clone_model(self) -> PluribusPokerTransformer:
         """Clone current model for opponent pool."""
         # Extract model dimensions from current model
-        model_config = {
-            'd_model': self.model.d_model,
-            'nhead': 8,  # Standard value
-            'num_layers': 6,  # Standard value
-            'dim_feedforward': 2048,  # Standard value
-            'dropout': 0.1,  # Standard value
-        }
-        
+        if self.model_config:
+            model_config = self.model_config
+        else:
+            model_config = {
+                'd_model': self.model.d_model,
+                'nhead': 8,  # Standard value
+                'num_layers': 6,  # Standard value
+                'dim_feedforward': 2048,  # Standard value
+                'dropout': 0.1,  # Standard value
+            }
+
         model_clone = create_model(model_config)
         
         # Get state dict and handle torch.compile() prefix
@@ -399,7 +403,7 @@ class PPOTrainer:
     
     def play_episode(
         self,
-        opponent_model: Optional[PluribusPokerTransformer] = None,
+        opponent_model: Union[Optional[PluribusPokerTransformer], HeuristicPokerPlayer] = None,
         temperature: float = 1.0,
     ) -> Dict:
         """
@@ -414,13 +418,24 @@ class PPOTrainer:
         Returns:
             Episode data (states, actions, rewards, log_probs, cached tensors)
         """
-        # Select opponent (15% random for exploration, 85% from pool)
+        # Select opponent logic:
+        # If pool is empty: 50% Random, 50% Heuristic
+        # If pool exists: 10% Random, 50% Heuristic, 40% Pool
         if opponent_model is None:
-            if len(self.opponent_pool) == 0 or np.random.random() < float(self.baseline_frac):
-                opponent_model = None  # Random baseline
+            rand = np.random.random()
+            if len(self.opponent_pool) == 0:
+                if rand < 0.5:
+                    opponent_model = None  # Random baseline
+                else:
+                    opponent_model = self.heuristic_opponent
             else:
-                opponent_model = np.random.choice(list(self.opponent_pool))
-        
+                if rand < 0.1:
+                    opponent_model = None  # Random baseline
+                elif rand < 0.6:
+                    opponent_model = self.heuristic_opponent
+                else:
+                    opponent_model = np.random.choice(list(self.opponent_pool))
+
         # Track episode data with cached tensors
         episode_data = {
             0: {
@@ -446,18 +461,43 @@ class PPOTrainer:
             current_player = state['player_idx']
             
             # Select model
+            is_heuristic = False
+
             if current_player == 0:
                 model = self.model
                 model.train()  # Training mode for player 0 (us)
                 cache_tensors = True  # Cache for player 0 (we'll train on this)
             else:
-                model = opponent_model
-                if model is not None:
-                    model.eval()  # Eval mode for opponent (faster, no dropout)
-                cache_tensors = False  # Don't cache opponent actions
-            
+                if opponent_model == self.heuristic_opponent:
+                    model = None
+                    is_heuristic = True
+                    cache_tensors = False
+                else:
+                    model = opponent_model
+                    if model is not None:
+                        model.eval()  # Eval mode for opponent (faster, no dropout)
+                    cache_tensors = False  # Don't cache opponent actions
+
             # Select action
-            if model is None:
+            if is_heuristic:
+                # Heuristic Agent Logic
+                pred = self.heuristic_opponent.predict(state)
+                action = pred['action_idx']
+                raise_amount = pred.get('raise_amount_pot_multiple', 0.0)
+
+                # Ensure valid action
+                valid_actions = self.env.get_valid_actions()
+                if valid_actions and action not in valid_actions:
+                    if 1 in valid_actions: action = 1
+                    elif 0 in valid_actions: action = 0
+                    else: action = valid_actions[0]
+
+                info = {
+                    'log_prob': torch.tensor(0.0, device=self.device),
+                    'critic_value': 0.0,
+                    'valid_action_mask': None
+                }
+            elif model is None:
                 # Random baseline
                 valid_actions = self.env.get_valid_actions()
                 if len(valid_actions) == 0:
@@ -499,13 +539,52 @@ class PPOTrainer:
         else:
             final_rewards = [0.0] * self.env.player_count
         
-        # Assign rewards
+        # Assign rewards with REWARD SHAPING
         for player in list(episode_data.keys()):
             num_actions = len(episode_data[player]['actions'])
-            # Use reward for this player if available, otherwise 0
-            r = final_rewards[player] if player < len(final_rewards) else 0.0
-            episode_data[player]['rewards'] = [r] * num_actions
-        
+            if num_actions == 0:
+                continue
+
+            player_rewards = []
+            final_r = final_rewards[player] if player < len(final_rewards) else 0.0
+
+            # Base loss amplification (global strategy correction)
+            if final_r < 0:
+                final_r *= 1.5
+
+            for i in range(num_actions):
+                action = episode_data[player]['actions'][i]
+                state = episode_data[player]['states'][i]
+                strength = state.get('hand_strength', 0.0)
+
+                step_reward = final_r
+
+                # REWARD SHAPING LOGIC
+
+                # 1. Good Fold (Discipline)
+                # If we fold trash (< 0.4), we get a tiny bonus to offset the blind loss
+                if action == 0 and strength < 0.4:
+                    step_reward += 0.02
+
+                # 2. Bad Fold (Fear)
+                # If we fold a monster (> 0.7), small penalty
+                if action == 0 and strength > 0.7:
+                     step_reward -= 0.05
+
+                # 3. Bad Raise (Failed Bluff)
+                # If we raised with trash (< 0.2) and LOST money in the end -> Extra Penalty
+                if action == 2 and strength < 0.2 and final_r < 0:
+                    step_reward *= 1.2 # Amplify the loss further
+
+                # 4. Good Raise (Value Bet)
+                # If we raised with good hand (> 0.8) and WON -> Extra Bonus
+                if action == 2 and strength > 0.8 and final_r > 0:
+                    step_reward *= 1.1
+
+                player_rewards.append(step_reward)
+
+            episode_data[player]['rewards'] = player_rewards
+
         return episode_data
     
     def compute_ppo_loss(self, all_episode_data: List[Dict]) -> Tuple[torch.Tensor, Dict]:
@@ -927,7 +1006,7 @@ class PPOTrainer:
         self.writer.close()
     
     def save_checkpoint(self, filename: str):
-        """Save checkpoint with stripped state dict for compatibility."""
+        """Save checkpoint with stripped state dict for compatibility. Also rotates old checkpoints."""
         # Strip torch.compile() prefix if present
         state_dict = self.model.state_dict()
         if any(key.startswith('_orig_mod.') for key in state_dict.keys()):
@@ -940,11 +1019,23 @@ class PPOTrainer:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'best_win_rate': self.best_win_rate,
             'opponent_pool_size': len(self.opponent_pool),
+            'model_config': self.model_config,
         }
         
         checkpoint_path = self.output_dir / filename
         torch.save(checkpoint, checkpoint_path)
         print(f"  ✓ Saved checkpoint: {checkpoint_path}")
+
+        # Cleanup old checkpoints (keep last 3 + best_model)
+        try:
+            checkpoints = sorted(list(self.output_dir.glob('checkpoint_episode_*.pt')),
+                               key=lambda x: int(x.stem.split('_')[-1]))
+            if len(checkpoints) > 3:
+                for ckpt in checkpoints[:-3]:
+                    ckpt.unlink()
+                    print(f"  Deleted old checkpoint: {ckpt.name}")
+        except Exception as e:
+            print(f"Warning: Failed to cleanup old checkpoints: {e}")
 
 
 def main():
@@ -1121,6 +1212,7 @@ def main():
         temperature=args.temperature,
         baseline_frac=args.baseline_frac,
         randomize_stacks=args.randomize_stacks,
+        model_config=filtered_config,
     )
     
     # Resume if specified
