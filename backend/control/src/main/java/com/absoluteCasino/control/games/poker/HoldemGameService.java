@@ -349,11 +349,10 @@ public class HoldemGameService {
 		hand.setStreet(BettingStreet.PREFLOP);
 
 		for (Seat seat : activeSeats) {
-			PlayerHandState ps = new PlayerHandState(seat.getPosition());
+			PlayerHandState ps = hand.getPlayers().computeIfAbsent(seat.getPosition(), PlayerHandState::new);
 			ps.setHole1(hand.getShoe().getCard());
 			ps.setHole2(hand.getShoe().getCard());
 			ps.setActedThisStreet(false);
-			hand.getPlayers().put(seat.getPosition(), ps);
 		}
 
 		Seat firstToAct = getNextOccupiedSeat(table, bigBlindSeat.getPosition(), activeSeats);
@@ -391,8 +390,16 @@ public class HoldemGameService {
 		List<PlayerHandState> active = hand.getPlayers().values().stream().filter(ps -> !ps.isFolded())
 				.filter(ps -> !ps.isAllIn()).toList();
 
-		if (active.size() <= 1) {
+		if (active.isEmpty()) {
 			return true;
+		}
+
+		if (active.size() == 1) {
+			PlayerHandState remainingPlayer = active.getFirst();
+			if (hand.getCurrentBet() == 0) {
+				return true;
+			}
+			return remainingPlayer.getChipsInPotThisStreet() == hand.getCurrentBet();
 		}
 
 		if (hand.getCurrentBet() == 0) {
@@ -744,6 +751,70 @@ public class HoldemGameService {
 	private record SidePot(long amount, Set<Integer> eligibleSeats) {
 	}
 
+	private HoldemAI.AIAction copyAiAction(HoldemAI.AIAction action) {
+		if (action == null) {
+			return null;
+		}
+		HoldemAI.AIAction copy = new HoldemAI.AIAction();
+		copy.type = action.type;
+		copy.raiseAmount = action.raiseAmount;
+		return copy;
+	}
+
+	private HoldemAI.AIAction buildFallbackAiAction(List<String> availableActions) {
+		if (availableActions == null || availableActions.isEmpty()) {
+			return null;
+		}
+
+		HoldemAI.AIAction fallback = new HoldemAI.AIAction();
+		if (availableActions.contains(PlayerActionType.CALL.name())) {
+			fallback.type = PlayerActionType.CALL;
+		} else if (availableActions.contains(PlayerActionType.CHECK.name())) {
+			fallback.type = PlayerActionType.CHECK;
+		} else if (availableActions.contains(PlayerActionType.ALL_IN.name())) {
+			fallback.type = PlayerActionType.ALL_IN;
+		} else if (availableActions.contains(PlayerActionType.FOLD.name())) {
+			fallback.type = PlayerActionType.FOLD;
+		} else {
+			return null;
+		}
+
+		return fallback;
+	}
+
+	private HoldemAI.AIAction normalizeAiAction(HoldemTable table, Seat aiSeat, HoldemAI.AIAction action) {
+		List<String> availableActions = table.getAvailableActionsForSeat(aiSeat.getPosition());
+		if (availableActions.isEmpty()) {
+			return null;
+		}
+
+		HoldemAI.AIAction normalized = copyAiAction(action);
+		if (normalized == null || normalized.type == null) {
+			return buildFallbackAiAction(availableActions);
+		}
+
+		if (normalized.type == PlayerActionType.CHECK && availableActions.contains(PlayerActionType.CALL.name())
+				&& !availableActions.contains(PlayerActionType.CHECK.name())) {
+			normalized.type = PlayerActionType.CALL;
+		} else if (normalized.type == PlayerActionType.CALL && availableActions.contains(PlayerActionType.CHECK.name())
+				&& !availableActions.contains(PlayerActionType.CALL.name())) {
+			normalized.type = PlayerActionType.CHECK;
+		}
+
+		if (availableActions.contains(normalized.type.name())) {
+			return normalized;
+		}
+
+		return buildFallbackAiAction(availableActions);
+	}
+
+	private boolean isSameAiAction(HoldemAI.AIAction first, HoldemAI.AIAction second) {
+		if (first == null || second == null) {
+			return first == second;
+		}
+		return first.type == second.type && first.raiseAmount == second.raiseAmount;
+	}
+
 	private void processAiTurn(HoldemTable table) {
 		try {
 			// Wait a bit for realism - add random delay between 1.5-2.5 seconds
@@ -753,7 +824,7 @@ public class HoldemGameService {
 			if (aiSeat == null || !aiSeat.isAi())
 				return;
 
-			HoldemAI.AIAction action = holdemAI.predictMove(table, aiSeat);
+			HoldemAI.AIAction action = normalizeAiAction(table, aiSeat, holdemAI.predictMove(table, aiSeat));
 
 			if (action == null) {
 				// Fallback: Check or Fold
@@ -761,7 +832,18 @@ public class HoldemGameService {
 				return;
 			}
 
-			handlePlayerAction(table.getTableId(), aiSeat.getUserId(), action.type, action.raiseAmount);
+			String error = handlePlayerAction(table.getTableId(), aiSeat.getUserId(), action.type, action.raiseAmount);
+			if (error != null) {
+				HoldemAI.AIAction fallbackAction = buildFallbackAiAction(
+						table.getAvailableActionsForSeat(aiSeat.getPosition()));
+				if (fallbackAction != null && !isSameAiAction(action, fallbackAction)) {
+					error = handlePlayerAction(table.getTableId(), aiSeat.getUserId(), fallbackAction.type,
+							fallbackAction.raiseAmount);
+				}
+				if (error != null) {
+					System.err.println("AI action rejected for seat " + aiSeat.getPosition() + ": " + error);
+				}
+			}
 
 			// Notify listener (WebSocket) to broadcast update
 			notifyUpdate(table.getTableId());
