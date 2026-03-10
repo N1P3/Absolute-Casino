@@ -1,0 +1,2184 @@
+[
+  {
+    "hole_cards": [
+      "Jc",
+      "Kc"
+    ],
+    "board": [
+      "4d",
+      "8s",
+      "9c",
+      "Ks",
+      "Js"
+    ],
+    "street": "RIVER",
+    "pot": 0.09944881498813629,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7069600224494934,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.0956101505144034e-05,
+      "CALL": 0.2930290699005127,
+      "RAISE": 0.7069600224494934
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ah",
+      "8h"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.020649999380111694,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6309061050415039,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.1127918924103142e-06,
+      "CALL": 0.36909276247024536,
+      "RAISE": 0.6309061050415039
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "7h",
+      "4c"
+    ],
+    "board": [
+      "6d",
+      "Kh",
+      "7c",
+      "Qs",
+      "Jc"
+    ],
+    "street": "RIVER",
+    "pot": 0.014999999664723873,
+    "predicted": "FOLD",
+    "predicted_prob": 0.5319576263427734,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.5319576263427734,
+      "CALL": 0.37104466557502747,
+      "RAISE": 0.09699773043394089
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9d",
+      "Kd"
+    ],
+    "board": [
+      "7s",
+      "4s",
+      "7c",
+      "3d"
+    ],
+    "street": "TURN",
+    "pot": 0.026000000536441803,
+    "predicted": "CALL",
+    "predicted_prob": 0.7519909143447876,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.112260434865675e-07,
+      "CALL": 0.7519909143447876,
+      "RAISE": 0.24800899624824524
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "7s",
+      "9h"
+    ],
+    "board": [
+      "4s",
+      "Ac",
+      "Ts",
+      "4h"
+    ],
+    "street": "TURN",
+    "pot": 0.029999999329447746,
+    "predicted": "CALL",
+    "predicted_prob": 0.7634958028793335,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 3.660947101025158e-08,
+      "CALL": 0.7634958028793335,
+      "RAISE": 0.2365041822195053
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "5d",
+      "9s"
+    ],
+    "board": [
+      "Tc",
+      "Ah",
+      "2c",
+      "8c",
+      "7c"
+    ],
+    "street": "RIVER",
+    "pot": 0.026000000536441803,
+    "predicted": "CALL",
+    "predicted_prob": 0.8053126335144043,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 2.6193795577000856e-08,
+      "CALL": 0.8053126335144043,
+      "RAISE": 0.19468732178211212
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Jd",
+      "Ks"
+    ],
+    "board": [
+      "Kh",
+      "3s",
+      "4d",
+      "Ah"
+    ],
+    "street": "TURN",
+    "pot": 0.05999999865889549,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5254834294319153,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.8320489516554517e-06,
+      "CALL": 0.47451475262641907,
+      "RAISE": 0.5254834294319153
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "8h",
+      "6c"
+    ],
+    "board": [
+      "Jd",
+      "Jh",
+      "6h",
+      "Qs"
+    ],
+    "street": "TURN",
+    "pot": 0.02410000003874302,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5520868897438049,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 2.4324322112079244e-06,
+      "CALL": 0.4479106664657593,
+      "RAISE": 0.5520868897438049
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "7h",
+      "6c"
+    ],
+    "board": [
+      "3s",
+      "5d",
+      "3h",
+      "6s"
+    ],
+    "street": "TURN",
+    "pot": 0.1543000042438507,
+    "predicted": "CALL",
+    "predicted_prob": 0.5547297596931458,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.3112910985946655,
+      "CALL": 0.5547297596931458,
+      "RAISE": 0.1339791715145111
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Kh",
+      "Js"
+    ],
+    "board": [
+      "Qd",
+      "8h",
+      "8c"
+    ],
+    "street": "FLOP",
+    "pot": 0.04500000178813934,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6766089200973511,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 5.410145240603015e-05,
+      "CALL": 0.32333695888519287,
+      "RAISE": 0.6766089200973511
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Qh",
+      "Qd"
+    ],
+    "board": [
+      "5d",
+      "Ts",
+      "9s",
+      "Td",
+      "8s"
+    ],
+    "street": "RIVER",
+    "pot": 0.03254999965429306,
+    "predicted": "FOLD",
+    "predicted_prob": 0.5695028901100159,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.5695028901100159,
+      "CALL": 0.32656747102737427,
+      "RAISE": 0.10392963141202927
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Kd",
+      "Qd"
+    ],
+    "board": [
+      "3h",
+      "6h",
+      "Th",
+      "2h"
+    ],
+    "street": "TURN",
+    "pot": 0.15000000596046448,
+    "predicted": "CALL",
+    "predicted_prob": 0.8160891532897949,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.9229719327995554e-07,
+      "CALL": 0.8160891532897949,
+      "RAISE": 0.18391062319278717
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "2d",
+      "3c"
+    ],
+    "board": [
+      "3h",
+      "Kh",
+      "Ts",
+      "9c"
+    ],
+    "street": "TURN",
+    "pot": 0.10999999940395355,
+    "predicted": "FOLD",
+    "predicted_prob": 0.8136663436889648,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.8136663436889648,
+      "CALL": 0.15784789621829987,
+      "RAISE": 0.028485743328928947
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "4c",
+      "Ah"
+    ],
+    "board": [
+      "Th",
+      "4s",
+      "3d",
+      "Ks",
+      "5d"
+    ],
+    "street": "RIVER",
+    "pot": 0.019999999552965164,
+    "predicted": "CALL",
+    "predicted_prob": 0.7550280690193176,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 3.787896662998946e-09,
+      "CALL": 0.7550280690193176,
+      "RAISE": 0.24497193098068237
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "4d",
+      "6s"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6240854263305664,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.22296743094921112,
+      "CALL": 0.15294712781906128,
+      "RAISE": 0.6240854263305664
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "8s",
+      "Kc"
+    ],
+    "board": [
+      "6d",
+      "Qs",
+      "6s",
+      "3s",
+      "2h"
+    ],
+    "street": "RIVER",
+    "pot": 0.06199999898672104,
+    "predicted": "CALL",
+    "predicted_prob": 0.5410817861557007,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 8.454558297898984e-08,
+      "CALL": 0.5410817861557007,
+      "RAISE": 0.45891812443733215
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ts",
+      "4s"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.017999999225139618,
+    "predicted": "CALL",
+    "predicted_prob": 0.7289676666259766,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.19709935784339905,
+      "CALL": 0.7289676666259766,
+      "RAISE": 0.0739329382777214
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9c",
+      "7c"
+    ],
+    "board": [
+      "2s",
+      "8h",
+      "Th"
+    ],
+    "street": "FLOP",
+    "pot": 0.09149999916553497,
+    "predicted": "CALL",
+    "predicted_prob": 0.49982744455337524,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.450760155916214,
+      "CALL": 0.49982744455337524,
+      "RAISE": 0.049412429332733154
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9c",
+      "9h"
+    ],
+    "board": [
+      "Ah",
+      "6c",
+      "Ac",
+      "Tc",
+      "9d"
+    ],
+    "street": "RIVER",
+    "pot": 0.10005000233650208,
+    "predicted": "CALL",
+    "predicted_prob": 0.5914140343666077,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.2911912798881531,
+      "CALL": 0.5914140343666077,
+      "RAISE": 0.11739467084407806
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "6h",
+      "As"
+    ],
+    "board": [
+      "7c",
+      "Kc",
+      "Kd",
+      "2c"
+    ],
+    "street": "TURN",
+    "pot": 0.12999999523162842,
+    "predicted": "FOLD",
+    "predicted_prob": 0.6049649119377136,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.6049649119377136,
+      "CALL": 0.360222727060318,
+      "RAISE": 0.034812308847904205
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ah",
+      "Kh"
+    ],
+    "board": [
+      "Th",
+      "6h",
+      "Jd",
+      "7d"
+    ],
+    "street": "TURN",
+    "pot": 0.04820000007748604,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5815250873565674,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 2.0290481188567355e-06,
+      "CALL": 0.41847291588783264,
+      "RAISE": 0.5815250873565674
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9s",
+      "9d"
+    ],
+    "board": [
+      "4c",
+      "8s",
+      "Td",
+      "8d"
+    ],
+    "street": "TURN",
+    "pot": 0.15447992086410522,
+    "predicted": "CALL",
+    "predicted_prob": 0.750071108341217,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.1782899491663557e-06,
+      "CALL": 0.750071108341217,
+      "RAISE": 0.24992763996124268
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ks",
+      "8s"
+    ],
+    "board": [
+      "6s",
+      "Qh",
+      "7d",
+      "9d"
+    ],
+    "street": "TURN",
+    "pot": 0.019999999552965164,
+    "predicted": "CALL",
+    "predicted_prob": 0.773953914642334,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 7.236619126160804e-08,
+      "CALL": 0.773953914642334,
+      "RAISE": 0.22604595124721527
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "8h",
+      "4h"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.006294586695730686,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5584118366241455,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.1276021041339845e-06,
+      "CALL": 0.44158706068992615,
+      "RAISE": 0.5584118366241455
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ad",
+      "Kc"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.021585555747151375,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6498808264732361,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 3.571399886936888e-08,
+      "CALL": 0.35011914372444153,
+      "RAISE": 0.6498808264732361
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "3c",
+      "Kh"
+    ],
+    "board": [
+      "Ks",
+      "2s",
+      "9c"
+    ],
+    "street": "FLOP",
+    "pot": 0.009999999776482582,
+    "predicted": "CALL",
+    "predicted_prob": 0.7197505235671997,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.1695756256813183e-06,
+      "CALL": 0.7197505235671997,
+      "RAISE": 0.2802482843399048
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "6c",
+      "3c"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6647651791572571,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.08419542759656906,
+      "CALL": 0.25103938579559326,
+      "RAISE": 0.6647651791572571
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Td",
+      "Tc"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.912647545337677,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.0282147400175745e-07,
+      "CALL": 0.08735235035419464,
+      "RAISE": 0.912647545337677
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "4s",
+      "4c"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.870928943157196,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 2.229360688943416e-06,
+      "CALL": 0.12906886637210846,
+      "RAISE": 0.870928943157196
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "5s",
+      "Qd"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7012359499931335,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.000667344662360847,
+      "CALL": 0.29809674620628357,
+      "RAISE": 0.7012359499931335
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "5c",
+      "8d"
+    ],
+    "board": [
+      "Td",
+      "Qd",
+      "Qs"
+    ],
+    "street": "FLOP",
+    "pot": 0.026000000536441803,
+    "predicted": "CALL",
+    "predicted_prob": 0.7855873107910156,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.3183527016735752e-06,
+      "CALL": 0.7855873107910156,
+      "RAISE": 0.2144114375114441
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Qc",
+      "Th"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7330368161201477,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.1826471563836094e-05,
+      "CALL": 0.2669513523578644,
+      "RAISE": 0.7330368161201477
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "6d",
+      "Qd"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7496470808982849,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 9.68404265222489e-07,
+      "CALL": 0.2503519058227539,
+      "RAISE": 0.7496470808982849
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Jc",
+      "7c"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7084327936172485,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.162003968602221e-06,
+      "CALL": 0.29156601428985596,
+      "RAISE": 0.7084327936172485
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Kc",
+      "9d"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7626251578330994,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 2.352914452785626e-05,
+      "CALL": 0.23735128343105316,
+      "RAISE": 0.7626251578330994
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9c",
+      "2c"
+    ],
+    "board": [
+      "4c",
+      "Qs",
+      "Ts"
+    ],
+    "street": "FLOP",
+    "pot": 0.029999999329447746,
+    "predicted": "CALL",
+    "predicted_prob": 0.9183838367462158,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 5.221257310950023e-07,
+      "CALL": 0.9183838367462158,
+      "RAISE": 0.08161560446023941
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "8h",
+      "9s"
+    ],
+    "board": [
+      "Ad",
+      "Kh",
+      "2s"
+    ],
+    "street": "FLOP",
+    "pot": 0.021079257130622864,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5395607352256775,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.8020551806330332e-06,
+      "CALL": 0.4604374170303345,
+      "RAISE": 0.5395607352256775
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9s",
+      "Jc"
+    ],
+    "board": [
+      "4c",
+      "4h",
+      "Js",
+      "2h",
+      "5c"
+    ],
+    "street": "RIVER",
+    "pot": 0.19506312906742096,
+    "predicted": "CALL",
+    "predicted_prob": 0.6141794323921204,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.691863758424006e-06,
+      "CALL": 0.6141794323921204,
+      "RAISE": 0.3858188986778259
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "As",
+      "5s"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.03500000014901161,
+    "predicted": "CALL",
+    "predicted_prob": 0.5658676624298096,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.12369264662265778,
+      "CALL": 0.5658676624298096,
+      "RAISE": 0.31043970584869385
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ks",
+      "2h"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.620348334312439,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.0030841806437820196,
+      "CALL": 0.37656742334365845,
+      "RAISE": 0.620348334312439
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "8d",
+      "5s"
+    ],
+    "board": [
+      "2h",
+      "2s",
+      "8s",
+      "Kh",
+      "4c"
+    ],
+    "street": "RIVER",
+    "pot": 0.014999999664723873,
+    "predicted": "FOLD",
+    "predicted_prob": 0.4807994067668915,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.4807994067668915,
+      "CALL": 0.4087585508823395,
+      "RAISE": 0.11044199019670486
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "3s",
+      "Ac"
+    ],
+    "board": [
+      "4s",
+      "Js",
+      "9s"
+    ],
+    "street": "FLOP",
+    "pot": 0.15000000596046448,
+    "predicted": "CALL",
+    "predicted_prob": 0.6293278336524963,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.98501339809809e-07,
+      "CALL": 0.6293278336524963,
+      "RAISE": 0.37067198753356934
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Jh",
+      "Js"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.0170499999076128,
+    "predicted": "RAISE",
+    "predicted_prob": 0.8976384401321411,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 9.686013768828161e-09,
+      "CALL": 0.1023615375161171,
+      "RAISE": 0.8976384401321411
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "7h",
+      "5d"
+    ],
+    "board": [
+      "7c",
+      "6h",
+      "Qc",
+      "Qh"
+    ],
+    "street": "TURN",
+    "pot": 0.014999999664723873,
+    "predicted": "FOLD",
+    "predicted_prob": 0.4391152858734131,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.4391152858734131,
+      "CALL": 0.37230154871940613,
+      "RAISE": 0.18858321011066437
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ah",
+      "Ks"
+    ],
+    "board": [
+      "Jc",
+      "5s",
+      "6d",
+      "6s"
+    ],
+    "street": "TURN",
+    "pot": 0.029999999329447746,
+    "predicted": "CALL",
+    "predicted_prob": 0.5747701525688171,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 3.267745114499121e-06,
+      "CALL": 0.5747701525688171,
+      "RAISE": 0.4252265691757202
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Jc",
+      "Qc"
+    ],
+    "board": [
+      "6d",
+      "Jd",
+      "4c",
+      "3h"
+    ],
+    "street": "TURN",
+    "pot": 0.04399999976158142,
+    "predicted": "CALL",
+    "predicted_prob": 0.7247551083564758,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 5.730184398089477e-07,
+      "CALL": 0.7247551083564758,
+      "RAISE": 0.27524426579475403
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ts",
+      "Kh"
+    ],
+    "board": [
+      "Kc",
+      "7c",
+      "3c",
+      "Td",
+      "Qc"
+    ],
+    "street": "RIVER",
+    "pot": 0.07410000264644623,
+    "predicted": "CALL",
+    "predicted_prob": 0.5085256099700928,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 2.323673470527865e-06,
+      "CALL": 0.5085256099700928,
+      "RAISE": 0.491472065448761
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Qs",
+      "3d"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6295595765113831,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.011123624630272388,
+      "CALL": 0.35931679606437683,
+      "RAISE": 0.6295595765113831
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "4c",
+      "9c"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.017999999225139618,
+    "predicted": "CALL",
+    "predicted_prob": 0.7457658052444458,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.24384792149066925,
+      "CALL": 0.7457658052444458,
+      "RAISE": 0.010386232286691666
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "5h",
+      "3d"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5929310917854309,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.2617740333080292,
+      "CALL": 0.1452949196100235,
+      "RAISE": 0.5929310917854309
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "6c",
+      "8d"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6473895907402039,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.05390194430947304,
+      "CALL": 0.2987085282802582,
+      "RAISE": 0.6473895907402039
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Kd",
+      "8s"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.014999999664723873,
+    "predicted": "CALL",
+    "predicted_prob": 0.9252011179924011,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 8.024529233807698e-05,
+      "CALL": 0.9252011179924011,
+      "RAISE": 0.07471860200166702
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "4c",
+      "As"
+    ],
+    "board": [
+      "Qh",
+      "2s",
+      "Ac",
+      "Js",
+      "Ad"
+    ],
+    "street": "RIVER",
+    "pot": 0.10029999911785126,
+    "predicted": "CALL",
+    "predicted_prob": 0.7139808535575867,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.23022300004959106,
+      "CALL": 0.7139808535575867,
+      "RAISE": 0.05579620599746704
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "2s",
+      "Jd"
+    ],
+    "board": [
+      "5s",
+      "As",
+      "5d",
+      "3h"
+    ],
+    "street": "TURN",
+    "pot": 0.07999999821186066,
+    "predicted": "FOLD",
+    "predicted_prob": 0.4910648763179779,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.4910648763179779,
+      "CALL": 0.47025948762893677,
+      "RAISE": 0.03867562115192413
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "5d",
+      "7s"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.019999999552965164,
+    "predicted": "FOLD",
+    "predicted_prob": 0.6700648665428162,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.6700648665428162,
+      "CALL": 0.3280313014984131,
+      "RAISE": 0.0019038220634683967
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "7d",
+      "Jc"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6673541069030762,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.000506374693941325,
+      "CALL": 0.3321394920349121,
+      "RAISE": 0.6673541069030762
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ad",
+      "7h"
+    ],
+    "board": [
+      "2c",
+      "5s",
+      "9c"
+    ],
+    "street": "FLOP",
+    "pot": 0.05719999969005585,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7561574578285217,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.6245104461631854e-06,
+      "CALL": 0.24384096264839172,
+      "RAISE": 0.7561574578285217
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Qd",
+      "3h"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.02225000038743019,
+    "predicted": "FOLD",
+    "predicted_prob": 0.8854357004165649,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.8854357004165649,
+      "CALL": 0.11444126069545746,
+      "RAISE": 0.00012304421397857368
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "4h",
+      "Qs"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.019999999552965164,
+    "predicted": "FOLD",
+    "predicted_prob": 0.8423970341682434,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.8423970341682434,
+      "CALL": 0.15736404061317444,
+      "RAISE": 0.0002389295113971457
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "2s",
+      "Ah"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.05000000074505806,
+    "predicted": "CALL",
+    "predicted_prob": 0.7376295328140259,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.22233881056308746,
+      "CALL": 0.7376295328140259,
+      "RAISE": 0.04003161936998367
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "As",
+      "Jc"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.0170499999076128,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5712512731552124,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 2.0026104152748303e-07,
+      "CALL": 0.4287484884262085,
+      "RAISE": 0.5712512731552124
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Jh",
+      "Qs"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.017999999225139618,
+    "predicted": "CALL",
+    "predicted_prob": 0.862181544303894,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 5.387138571677497e-06,
+      "CALL": 0.862181544303894,
+      "RAISE": 0.13781313598155975
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "6c",
+      "Kh"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7589026093482971,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.00016764886095188558,
+      "CALL": 0.2409297376871109,
+      "RAISE": 0.7589026093482971
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "8d",
+      "4d"
+    ],
+    "board": [
+      "Jc",
+      "2d",
+      "2h"
+    ],
+    "street": "FLOP",
+    "pot": 0.02410000003874302,
+    "predicted": "CALL",
+    "predicted_prob": 0.7934280037879944,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 5.305701051838696e-07,
+      "CALL": 0.7934280037879944,
+      "RAISE": 0.20657142996788025
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "As",
+      "5c"
+    ],
+    "board": [
+      "5s",
+      "6s",
+      "3s",
+      "3d"
+    ],
+    "street": "TURN",
+    "pot": 0.01976935751736164,
+    "predicted": "CALL",
+    "predicted_prob": 0.725926399230957,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 2.606642546254534e-08,
+      "CALL": 0.725926399230957,
+      "RAISE": 0.2740735411643982
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Jd",
+      "4s"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6442512273788452,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.02724066749215126,
+      "CALL": 0.32850807905197144,
+      "RAISE": 0.6442512273788452
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "5c",
+      "7c"
+    ],
+    "board": [
+      "Jh",
+      "Jd",
+      "6h",
+      "7d"
+    ],
+    "street": "TURN",
+    "pot": 0.009999999776482582,
+    "predicted": "CALL",
+    "predicted_prob": 0.5571518540382385,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.1080444437538972e-06,
+      "CALL": 0.5571518540382385,
+      "RAISE": 0.44284701347351074
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ts",
+      "Tc"
+    ],
+    "board": [
+      "6h",
+      "3h",
+      "Qs"
+    ],
+    "street": "FLOP",
+    "pot": 0.029999999329447746,
+    "predicted": "CALL",
+    "predicted_prob": 0.6087490320205688,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.26416832208633423,
+      "CALL": 0.6087490320205688,
+      "RAISE": 0.12708260118961334
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "3h",
+      "4c"
+    ],
+    "board": [
+      "2h",
+      "9d",
+      "5h",
+      "5c",
+      "2c"
+    ],
+    "street": "RIVER",
+    "pot": 0.04149999842047691,
+    "predicted": "CALL",
+    "predicted_prob": 0.49945956468582153,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.42841485142707825,
+      "CALL": 0.49945956468582153,
+      "RAISE": 0.07212557643651962
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Tc",
+      "As"
+    ],
+    "board": [
+      "Jd",
+      "Qc",
+      "5s",
+      "8s",
+      "Qs"
+    ],
+    "street": "RIVER",
+    "pot": 0.05999999865889549,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5307407379150391,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 7.393854275505873e-07,
+      "CALL": 0.46925851702690125,
+      "RAISE": 0.5307407379150391
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "3h",
+      "5c"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.0170499999076128,
+    "predicted": "FOLD",
+    "predicted_prob": 0.691568911075592,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.691568911075592,
+      "CALL": 0.2943906784057617,
+      "RAISE": 0.014040390029549599
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ts",
+      "As"
+    ],
+    "board": [
+      "9d",
+      "3s",
+      "5s"
+    ],
+    "street": "FLOP",
+    "pot": 0.015150000341236591,
+    "predicted": "CALL",
+    "predicted_prob": 0.5374748706817627,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.29790833592414856,
+      "CALL": 0.5374748706817627,
+      "RAISE": 0.16461680829524994
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Jc",
+      "4h"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.014999999664723873,
+    "predicted": "CALL",
+    "predicted_prob": 0.7739315629005432,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.14229221642017365,
+      "CALL": 0.7739315629005432,
+      "RAISE": 0.08377617597579956
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Kc",
+      "5c"
+    ],
+    "board": [
+      "Qd",
+      "Ad",
+      "4s"
+    ],
+    "street": "FLOP",
+    "pot": 0.017249999567866325,
+    "predicted": "CALL",
+    "predicted_prob": 0.44453781843185425,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.36648431420326233,
+      "CALL": 0.44453781843185425,
+      "RAISE": 0.1889778971672058
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "3s",
+      "5s"
+    ],
+    "board": [
+      "8s",
+      "4d",
+      "4h"
+    ],
+    "street": "FLOP",
+    "pot": 0.026000000536441803,
+    "predicted": "CALL",
+    "predicted_prob": 0.7375750541687012,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.7390168068232015e-05,
+      "CALL": 0.7375750541687012,
+      "RAISE": 0.2624075710773468
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9s",
+      "8d"
+    ],
+    "board": [
+      "5s",
+      "6c",
+      "Kh"
+    ],
+    "street": "FLOP",
+    "pot": 0.027254145592451096,
+    "predicted": "CALL",
+    "predicted_prob": 0.7850618958473206,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.9351298305991804e-06,
+      "CALL": 0.7850618958473206,
+      "RAISE": 0.21493613719940186
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "6h",
+      "9s"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.019999999552965164,
+    "predicted": "FOLD",
+    "predicted_prob": 0.6208682656288147,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.6208682656288147,
+      "CALL": 0.3782907724380493,
+      "RAISE": 0.0008410373702645302
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "3h",
+      "Ad"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.010486072860658169,
+    "predicted": "CALL",
+    "predicted_prob": 0.7030336856842041,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 1.0587514864823788e-08,
+      "CALL": 0.7030336856842041,
+      "RAISE": 0.29696622490882874
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "6h",
+      "7h"
+    ],
+    "board": [
+      "Tc",
+      "Jc",
+      "Th",
+      "8d"
+    ],
+    "street": "TURN",
+    "pot": 0.1543000042438507,
+    "predicted": "CALL",
+    "predicted_prob": 0.627406120300293,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.24098385870456696,
+      "CALL": 0.627406120300293,
+      "RAISE": 0.13161006569862366
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Tc",
+      "9h"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7108694314956665,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 1.2619399967661593e-05,
+      "CALL": 0.2891179621219635,
+      "RAISE": 0.7108694314956665
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Js",
+      "Ts"
+    ],
+    "board": [
+      "Ac",
+      "6h",
+      "6c",
+      "8s",
+      "Jd"
+    ],
+    "street": "RIVER",
+    "pot": 0.12479999661445618,
+    "predicted": "CALL",
+    "predicted_prob": 0.6392586827278137,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.24445471167564392,
+      "CALL": 0.6392586827278137,
+      "RAISE": 0.11628666520118713
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "7d",
+      "7s"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.5166666507720947,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5063374638557434,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 2.6005093900494103e-07,
+      "CALL": 0.4936623275279999,
+      "RAISE": 0.5063374638557434
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9c",
+      "7s"
+    ],
+    "board": [
+      "Th",
+      "8h",
+      "3h"
+    ],
+    "street": "FLOP",
+    "pot": 0.11249999701976776,
+    "predicted": "FOLD",
+    "predicted_prob": 0.5296809673309326,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.5296809673309326,
+      "CALL": 0.4069819152355194,
+      "RAISE": 0.06333715468645096
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9s",
+      "6s"
+    ],
+    "board": [
+      "Js",
+      "Kc",
+      "2c"
+    ],
+    "street": "FLOP",
+    "pot": 0.026000000536441803,
+    "predicted": "CALL",
+    "predicted_prob": 0.7819846868515015,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 4.628375620541192e-07,
+      "CALL": 0.7819846868515015,
+      "RAISE": 0.21801480650901794
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Th",
+      "2s"
+    ],
+    "board": [
+      "Ah",
+      "6c",
+      "9c"
+    ],
+    "street": "FLOP",
+    "pot": 0.009999999776482582,
+    "predicted": "CALL",
+    "predicted_prob": 0.832658588886261,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 5.543411134567577e-07,
+      "CALL": 0.832658588886261,
+      "RAISE": 0.16734085977077484
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "2h",
+      "4h"
+    ],
+    "board": [
+      "4s",
+      "3d",
+      "3h"
+    ],
+    "street": "FLOP",
+    "pot": 0.009999999776482582,
+    "predicted": "CALL",
+    "predicted_prob": 0.7301958203315735,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 7.52252447000501e-07,
+      "CALL": 0.7301958203315735,
+      "RAISE": 0.26980337500572205
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "6d",
+      "Th"
+    ],
+    "board": [
+      "5d",
+      "6c",
+      "Ks",
+      "8h",
+      "Td"
+    ],
+    "street": "RIVER",
+    "pot": 0.05250656232237816,
+    "predicted": "RAISE",
+    "predicted_prob": 0.7643834948539734,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 5.7962748542195186e-05,
+      "CALL": 0.23555853962898254,
+      "RAISE": 0.7643834948539734
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "5h",
+      "5c"
+    ],
+    "board": [
+      "4c",
+      "Qh",
+      "Qs",
+      "Jd"
+    ],
+    "street": "TURN",
+    "pot": 0.029999999329447746,
+    "predicted": "CALL",
+    "predicted_prob": 0.5445786714553833,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 0.00011234194971621037,
+      "CALL": 0.5445786714553833,
+      "RAISE": 0.4553089737892151
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9s",
+      "5d"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6279330849647522,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.08714216202497482,
+      "CALL": 0.2849247455596924,
+      "RAISE": 0.6279330849647522
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ac",
+      "Jh"
+    ],
+    "board": [
+      "Qh",
+      "Tc",
+      "3h",
+      "Jd"
+    ],
+    "street": "TURN",
+    "pot": 0.04820000007748604,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5874231457710266,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 5.514506483450532e-06,
+      "CALL": 0.41257134079933167,
+      "RAISE": 0.5874231457710266
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "3c",
+      "Ad"
+    ],
+    "board": [
+      "7s",
+      "Jc",
+      "9c",
+      "Jh"
+    ],
+    "street": "TURN",
+    "pot": 0.029999999329447746,
+    "predicted": "RAISE",
+    "predicted_prob": 0.5039237141609192,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 5.3209387260722e-06,
+      "CALL": 0.4960709810256958,
+      "RAISE": 0.5039237141609192
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ac",
+      "Ts"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.0170499999076128,
+    "predicted": "CALL",
+    "predicted_prob": 0.6183774471282959,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 3.8255134882092534e-07,
+      "CALL": 0.6183774471282959,
+      "RAISE": 0.38162216544151306
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "4h",
+      "6h"
+    ],
+    "board": [
+      "6d",
+      "Td",
+      "5c",
+      "Ks"
+    ],
+    "street": "TURN",
+    "pot": 0.009999999776482582,
+    "predicted": "CALL",
+    "predicted_prob": 0.5690036416053772,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 3.776658275000955e-07,
+      "CALL": 0.5690036416053772,
+      "RAISE": 0.4309959411621094
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Js",
+      "7d"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.6688503623008728,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.0005266015068627894,
+      "CALL": 0.3306230306625366,
+      "RAISE": 0.6688503623008728
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Kh",
+      "Qc"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.017999999225139618,
+    "predicted": "CALL",
+    "predicted_prob": 0.5459976196289062,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 2.0655349999287864e-06,
+      "CALL": 0.5459976196289062,
+      "RAISE": 0.4540003538131714
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Jc",
+      "7d"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.052000001072883606,
+    "predicted": "FOLD",
+    "predicted_prob": 0.5087785720825195,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.5087785720825195,
+      "CALL": 0.49034011363983154,
+      "RAISE": 0.0008813321474008262
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Qd",
+      "5h"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.017999999225139618,
+    "predicted": "CALL",
+    "predicted_prob": 0.528292715549469,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.46723854541778564,
+      "CALL": 0.528292715549469,
+      "RAISE": 0.004468749277293682
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "Ah",
+      "5s"
+    ],
+    "board": [
+      "2h",
+      "2c",
+      "3d"
+    ],
+    "street": "FLOP",
+    "pot": 0.026000000536441803,
+    "predicted": "CALL",
+    "predicted_prob": 0.762169599533081,
+    "target": "RAISE",
+    "probabilities": {
+      "FOLD": 6.988526592976996e-07,
+      "CALL": 0.762169599533081,
+      "RAISE": 0.23782970011234283
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "7s",
+      "9h"
+    ],
+    "board": [
+      "2c",
+      "Jd",
+      "8s",
+      "2h",
+      "3s"
+    ],
+    "street": "RIVER",
+    "pot": 0.03200000151991844,
+    "predicted": "CALL",
+    "predicted_prob": 0.5462555885314941,
+    "target": "FOLD",
+    "probabilities": {
+      "FOLD": 0.31178003549575806,
+      "CALL": 0.5462555885314941,
+      "RAISE": 0.14196433126926422
+    },
+    "value_pred": null,
+    "value_target": null
+  },
+  {
+    "hole_cards": [
+      "9d",
+      "5s"
+    ],
+    "board": [],
+    "street": "PREFLOP",
+    "pot": 0.007499999832361937,
+    "predicted": "RAISE",
+    "predicted_prob": 0.626043438911438,
+    "target": "CALL",
+    "probabilities": {
+      "FOLD": 0.085411936044693,
+      "CALL": 0.2885446548461914,
+      "RAISE": 0.626043438911438
+    },
+    "value_pred": null,
+    "value_target": null
+  }
+]

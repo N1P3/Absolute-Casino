@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Poker AI - Inteligencja Obliczeniowa</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/theme/night.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/highlight/monokai.css" />
+    <style>
+      :root {
+        --r-main-font-size: 32px;
+        --r-heading1-size: 2.2em;
+        --r-heading2-size: 1.6em;
+        --r-heading3-size: 1.2em;
+      }
+      .reveal {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+      .reveal h1,
+      .reveal h2,
+      .reveal h3 {
+        text-transform: none;
+        font-weight: 600;
+      }
+      .reveal h1 {
+        color: #42affa;
+      }
+      .reveal h2 {
+        color: #42affa;
+        border-bottom: 2px solid #42affa;
+        padding-bottom: 10px;
+      }
+      .reveal .highlight-box {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-left: 4px solid #42affa;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 8px;
+      }
+      .reveal .two-columns {
+        display: flex;
+        gap: 40px;
+        align-items: flex-start;
+      }
+      .reveal .two-columns > div {
+        flex: 1;
+      }
+      .reveal table {
+        margin: 20px auto;
+        border-collapse: collapse;
+        font-size: 0.7em;
+      }
+      .reveal table th,
+      .reveal table td {
+        border: 1px solid #444;
+        padding: 8px 16px;
+        text-align: left;
+      }
+      .reveal table th {
+        background: #42affa;
+        color: #000;
+      }
+      .reveal table tr:nth-child(even) {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .reveal .formula {
+        background: #1a1a2e;
+        padding: 15px 25px;
+        border-radius: 8px;
+        font-family: "Consolas", monospace;
+        color: #f8f8f2;
+        margin: 15px 0;
+        display: inline-block;
+      }
+      .reveal ul {
+        text-align: left;
+      }
+      .reveal li {
+        margin: 10px 0;
+      }
+      .reveal .small-text {
+        font-size: 0.6em;
+        color: #888;
+      }
+      .reveal .architecture-box {
+        background: #0d1117;
+        border: 2px solid #30363d;
+        border-radius: 12px;
+        padding: 15px;
+        margin: 10px;
+        text-align: center;
+      }
+      .reveal .arrow {
+        font-size: 2em;
+        color: #42affa;
+      }
+      .reveal .metric-card {
+        background: linear-gradient(135deg, #1e3a5f 0%, #0d2137 100%);
+        border-radius: 12px;
+        padding: 20px;
+        margin: 10px;
+        text-align: center;
+        display: inline-block;
+        min-width: 150px;
+      }
+      .reveal .metric-value {
+        font-size: 2em;
+        font-weight: bold;
+        color: #42affa;
+      }
+      .reveal .metric-label {
+        font-size: 0.7em;
+        color: #aaa;
+        margin-top: 5px;
+      }
+      .reveal img {
+        max-height: 400px;
+        border-radius: 8px;
+      }
+      .reveal .code-block {
+        background: #0d1117;
+        padding: 15px;
+        border-radius: 8px;
+        font-family: "Consolas", monospace;
+        font-size: 0.6em;
+        text-align: left;
+        color: #e6e6e6;
+      }
+      .reveal .icon {
+        font-size: 3em;
+        margin-bottom: 10px;
+      }
+      .reveal .green {
+        color: #4ade80;
+      }
+      .reveal .blue {
+        color: #42affa;
+      }
+      .reveal .orange {
+        color: #fb923c;
+      }
+      .reveal .red {
+        color: #f87171;
+      }
+      .reveal .purple {
+        color: #a78bfa;
+      }
+      .poker-card {
+        display: inline-block;
+        background: white;
+        color: black;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-weight: bold;
+        margin: 2px;
+      }
+      .poker-card.red {
+        color: #dc2626;
+      }
+      .poker-card.black {
+        color: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <!-- SLAJD 1: Tytułowy -->
+        <section data-background-gradient="linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)">
+          <h1 style="font-size: 2.5em">Poker AI</h1>
+          <h3 style="color: #fff; font-weight: normal">Transformer + Reinforcement Learning dla No-Limit Texas Hold'em</h3>
+          <br /><br />
+          <p style="font-size: 0.8em; color: #888">
+            Inteligencja Obliczeniowa<br />
+            Mateusz Kroplewski<br />
+            Aleksander Olkowicz
+          </p>
+          <p style="font-size: 2em; margin-top: 30px">
+            <span class="poker-card black">A&#9824;</span>
+            <span class="poker-card red">K&#9829;</span>
+          </p>
+        </section>
+
+        <!-- SLAJD 2: Agenda -->
+        <!-- <section>
+          <h2>Agenda</h2>
+          <div class="two-columns">
+            <div>
+              <ol>
+                <li>Motywacja i problem</li>
+                <li>Architektura systemu</li>
+                <li>Model Transformer</li>
+                <li>Funkcja straty</li>
+                <li>Dataset i preprocessing</li>
+              </ol>
+            </div>
+            <div>
+              <ol start="6">
+                <li>Supervised Learning</li>
+                <li>Reinforcement Learning (PPO)</li>
+                <li>Optymalizacje</li>
+                <li>Wyniki i ewaluacja</li>
+                <li>Podsumowanie</li>
+              </ol>
+            </div>
+          </div>
+        </section> -->
+
+        <!-- SLAJD 3: Motywacja -->
+        <section>
+          <h2>Problematyczność pokera</h2>
+          <div class="highlight-box">
+            <p><strong>Poker to jedno z najtrudniejszych wyzwań dla AI:</strong></p>
+          </div>
+          <div class="two-columns" style="margin-top: 30px">
+            <div>
+              <p class="blue" style="font-size: 1.2em">Niepełna informacja</p>
+              <p style="font-size: 0.8em">Nie znamy kart przeciwnika</p>
+              <br />
+              <p class="orange" style="font-size: 1.2em">Losowość</p>
+              <p style="font-size: 0.8em">Karty są rozdawane losowo</p>
+            </div>
+            <div>
+              <p class="green" style="font-size: 1.2em">Blefowanie</p>
+              <p style="font-size: 0.8em">Potrzeba modelowania przeciwnika</p>
+              <br />
+              <p class="purple" style="font-size: 1.2em">Ogromna przestrzeń stanów</p>
+              <p style="font-size: 0.8em">~10<sup>160</sup> możliwych stanów gry</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- SLAJD 4: Architektura systemu -->
+        <section>
+          <h2>Architektura Systemu</h2>
+          <p style="color: #888">Dwufazowy pipeline treningowy</p>
+          <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 40px">
+            <div class="architecture-box" style="background: linear-gradient(135deg, #1e3a5f, #0d2137)">
+              <p class="blue" style="font-size: 1.3em; margin: 0">FAZA 1</p>
+              <p style="font-size: 1.1em; margin: 10px 0">Supervised Learning</p>
+              <p style="font-size: 0.7em; color: #888">Nauka z rąk ekspertów<br />(ACPC, HandHQ, Pluribus)</p>
+            </div>
+            <div class="arrow">&#10132;</div>
+            <div class="architecture-box" style="background: linear-gradient(135deg, #3a1e5f, #210d37)">
+              <p class="purple" style="font-size: 1.3em; margin: 0">FAZA 2</p>
+              <p style="font-size: 1.1em; margin: 10px 0">Reinforcement Learning</p>
+              <p style="font-size: 0.7em; color: #888">Self-play z PPO<br />(50,000 epizodów)</p>
+            </div>
+          </div>
+          <div class="highlight-box" style="margin-top: 30px">
+            <p style="margin: 0; font-size: 0.9em">Model uczy się jednocześnie <strong>wyboru akcji</strong> (fold/call/raise) oraz <strong>rozmiaru zakładu</strong></p>
+          </div>
+        </section>
+
+        <!-- SLAJD 5: Architektura Transformer -->
+        <section>
+          <h2>Architektura Modelu</h2>
+          <div style="display: flex; flex-direction: column; align-items: center; font-size: 0.85em">
+            <div class="architecture-box" style="width: 80%">
+              <span class="green">STATIC STATE ENCODER</span><br />
+              <span style="font-size: 0.8em; color: #888">Karty + Stacki + Pot + Street</span>
+            </div>
+            <div class="arrow" style="font-size: 1em">&#8595;</div>
+            <div class="architecture-box" style="width: 80%">
+              <span class="blue">ACTION SEQUENCE ENCODER</span><br />
+              <span style="font-size: 0.8em; color: #888">Historia licytacji (20 akcji)</span>
+            </div>
+            <div class="arrow" style="font-size: 1em">&#8595;</div>
+            <div class="architecture-box" style="width: 80%">
+              <span class="orange">FUSION LAYER</span><br />
+              <span style="font-size: 0.8em; color: #888">Łączenie cech statycznych i sekwencyjnych</span>
+            </div>
+            <div style="display: flex; gap: 30px; margin-top: 10px">
+              <div class="architecture-box">
+                <span class="purple">ACTION HEAD</span><br />
+                <span style="font-size: 0.8em">Fold | Call | Raise</span>
+              </div>
+              <div class="architecture-box">
+                <span class="red">VALUE HEAD</span><br />
+                <span style="font-size: 0.8em">Rozmiar zakładu</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SLAJD 6: Parametry modelu -->
+        <section>
+          <h2>Parametry Modelu</h2>
+          <div class="two-columns">
+            <div>
+              <table>
+                <tr>
+                  <th>Parametr</th>
+                  <th>Wartość</th>
+                </tr>
+                <tr>
+                  <td>d_model</td>
+                  <td>512</td>
+                </tr>
+                <tr>
+                  <td>Attention heads</td>
+                  <td>8</td>
+                </tr>
+                <tr>
+                  <td>Transformer layers</td>
+                  <td>6</td>
+                </tr>
+                <tr>
+                  <td>FFN hidden dim</td>
+                  <td>2048</td>
+                </tr>
+                <tr>
+                  <td>Dropout</td>
+                  <td>0.1</td>
+                </tr>
+              </table>
+            </div>
+            <div>
+              <div class="metric-card">
+                <div class="metric-value">~28M</div>
+                <div class="metric-label">Parametrów</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value">~112MB</div>
+                <div class="metric-label">Rozmiar (fp32)</div>
+              </div>
+            </div>
+          </div>
+          <div class="highlight-box" style="margin-top: 20px">
+            <p style="margin: 0; font-size: 0.8em"><strong>Kodowanie kart:</strong> card_id = rank × 4 + suit → 16-dim embedding (8 rank + 8 suit)</p>
+          </div>
+        </section>
+
+        <!-- SLAJD 7: Wejście modelu -->
+        <section>
+          <h2>Reprezentacja Stanu Gry</h2>
+          <div class="two-columns">
+            <div>
+              <h3 style="color: #42affa; font-size: 1em">Static State (19 cech)</h3>
+              <ul style="font-size: 0.7em">
+                <li>2 karty własne (ID: 0-52)</li>
+                <li>5 kart wspólnych (ID: 0-52)</li>
+                <li>6 stacków graczy (znorm.)</li>
+                <li>Rozmiar puli (znorm.)</li>
+                <li>Siła ręki (0.0-1.0)</li>
+                <li>Street (one-hot: 4 dim)</li>
+              </ul>
+            </div>
+            <div>
+              <h3 style="color: #42affa; font-size: 1em">Action Sequence (20×10)</h3>
+              <ul style="font-size: 0.7em">
+                <li>20 ostatnich akcji</li>
+                <li>Każda akcja: 10 wymiarów</li>
+                <ul>
+                  <li>6 dim: Indeks gracza (one-hot)</li>
+                  <li>3 dim: Typ akcji (fold/call/raise)</li>
+                  <li>1 dim: Kwota zakładu (znorm.)</li>
+                </ul>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- SLAJD 8: Funkcja straty -->
+        <section>
+          <h2>Funkcja Straty</h2>
+          <p style="color: #888">Multi-Task Loss</p>
+          <div class="formula" style="font-size: 0.9em">L<sub>total</sub> = α × L<sub>action</sub> + β × L<sub>value</sub></div>
+          <div class="two-columns" style="margin-top: 20px">
+            <div class="highlight-box">
+              <p class="blue" style="margin: 0">L<sub>action</sub></p>
+              <p style="font-size: 0.8em; margin: 5px 0">CrossEntropyLoss</p>
+              <p style="font-size: 0.7em; color: #888; margin: 0">α = 1.0</p>
+            </div>
+            <div class="highlight-box">
+              <p class="orange" style="margin: 0">L<sub>value</sub></p>
+              <p style="font-size: 0.8em; margin: 5px 0">MSELoss (log-space)</p>
+              <p style="font-size: 0.7em; color: #888; margin: 0">β = 0.2</p>
+            </div>
+          </div>
+          <div class="highlight-box" style="margin-top: 20px; background: linear-gradient(135deg, #2d1f1f, #1a1a2e)">
+            <p style="margin: 0; font-size: 0.85em">Outcome-Based Weighting</p>
+            <p style="font-size: 0.7em; color: #aaa; margin: 5px 0 0 0">Wagi zależą od wyniku ręki - model uczy się agresywniej z wygranych decyzji</p>
+          </div>
+        </section>
+
+        <!-- SLAJD 9: Dataset -->
+        <section>
+          <h2>Dataset</h2>
+          <div class="two-columns">
+            <div>
+              <h3 style="color: #42affa; font-size: 1em">Źródła danych</h3>
+              <ul style="font-size: 0.8em">
+                <li>
+                  <strong>ACPC 2017</strong><br /><span style="color: #888">Annual Computer Poker Competition</span> <br />
+                  <span style="font-size: 0.5em; color: #888">Największe źródło danych, gry rozegrane w turnieju algorytmów pokerowych.</span>
+                </li>
+                <li>
+                  <strong>HandHQ</strong><br /><span style="color: #888">Profesjonalne ręce heads-up</span> <br />
+                  <span style="font-size: 0.5em; color: #888">Historia gier graczy online.</span>
+                </li>
+                <li>
+                  <strong>Pluribus</strong><br /><span style="color: #888">Model Facebook AI Research</span><br />
+                  <span style="font-size: 0.5em; color: #888">Nieduży dataset wszystkich rąk rozegranych przez SOTa model facebooka. Nie został nigdy publicznie udostępniony.</span>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <div class="metric-card">
+                <div class="metric-value">~550K</div>
+                <div class="metric-label">Punktów decyzyjnych</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value">53 MB</div>
+                <div class="metric-label">Rozmiar (NPZ)</div>
+              </div>
+              <div style="margin-top: 15px; font-size: 0.7em; color: #888">
+                Dystrybucja akcji:<br />
+                Fold: ~53% | Call: ~27% | Raise: ~20%
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SLAJD 10: Preprocessing -->
+        <section>
+          <h2>Preprocessing w Rust</h2>
+          <p style="color: #888">Wydajne przetwarzanie danych</p>
+          <div class="highlight-box">
+            <p style="margin: 0"><span class="orange">Dlaczego Rust?</span></p>
+            <span style="font-size: 0.6em"
+              >Dataset ważył 30GB po rozpakowaniu, rozbity na tysiące plików. Dodatkowo dane wymagały przetworzenia na format wymagany przez nasz model, co również wymagało symulacji gry, by wyciągnąć
+              też wszystkie kroki pośrednie w danym rozdaniu jako przykłady treningowe. Przetwarzanie w Pythonie trwało by dniami.
+            </span>
+          </div>
+          <div class="code-block" style="margin-top: 20px">
+            <span style="color: #888">// Pipeline przetwarzania</span><br />
+            1. Parsowanie TOML/PHH &#10132; <span class="green">Rayon (parallel)</span><br />
+            2. Symulacja gry krok po kroku<br />
+            3. Ekstrakcja punktów decyzyjnych<br />
+            4. Kodowanie do tablic NumPy<br />
+            5. Kompresja do formatu NPZ
+          </div>
+        </section>
+
+        <!-- SLAJD 11: Supervised Learning -->
+        <section>
+          <h2>Faza 1: Supervised Learning</h2>
+          <div class="two-columns">
+            <div>
+              <h3 style="color: #42affa; font-size: 1em">Konfiguracja</h3>
+              <table style="font-size: 0.75em">
+                <tr>
+                  <td>Epochs</td>
+                  <td>20</td>
+                </tr>
+                <tr>
+                  <td>Batch Size</td>
+                  <td>32-1024</td>
+                </tr>
+                <tr>
+                  <td>Learning Rate</td>
+                  <td>1e-4</td>
+                </tr>
+                <tr>
+                  <td>Optimizer</td>
+                  <td>AdamW</td>
+                </tr>
+                <tr>
+                  <td>Scheduler</td>
+                  <td>ReduceLROnPlateau</td>
+                </tr>
+              </table>
+            </div>
+            <div>
+              <h3 style="color: #42affa; font-size: 1em">Metryki</h3>
+              <ul style="font-size: 0.75em">
+                <li>Accuracy (ogólna)</li>
+                <li>Balanced Accuracy</li>
+                <li>Per-class Precision/Recall/F1</li>
+                <li>Value MAE (rozmiar zakładu)</li>
+              </ul>
+            </div>
+          </div>
+          <img src="../runs/run_20251114_125815/plots/train_epoch_accuracy.png" alt="Training Accuracy" style="max-height: 250px; margin-top: 20px" />
+          <img src="../runs/run_20251114_125815/plots/val_accuracy.png" alt="Training Accuracy" style="max-height: 250px; margin-top: 20px" />
+        </section>
+
+        <!-- SLAJD 12: Reinforcement Learning -->
+        <section>
+          <h2>Faza 2: Reinforcement Learning</h2>
+          <p style="color: #888">Proximal Policy Optimization (PPO)</p>
+          <div class="formula">L<sub>PPO</sub> = -min(r·A, clip(r, 1-ε, 1+ε)·A)</div>
+          <div class="two-columns" style="margin-top: 20px">
+            <div>
+              <h3 style="color: #42affa; font-size: 0.9em">Self-Play Framework</h3>
+              <ul style="font-size: 0.7em">
+                <li>15% gier: Random (eksploracja)</li>
+                <li>50% gier: Heurystyczny agent</li>
+                <li>35% gier: Poprzednie wersje modelu</li>
+              </ul>
+            </div>
+            <div>
+              <h3 style="color: #42affa; font-size: 0.9em">Hiperparametry</h3>
+              <ul style="font-size: 0.7em">
+                <li>Epizody: 50,000</li>
+                <li>PPO epochs: 6</li>
+                <li>Clip epsilon: 0.25</li>
+                <li>Learning rate: 2e-5</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- SLAJD 13: Reward Shaping -->
+        <section>
+          <h2>Reward Shaping w RL</h2>
+          <p style="color: #888">Kształtowanie nagrody z uwzględnieniem siły ręki</p>
+          <div class="code-block" style="font-size: 0.65em">
+            <span style="color: #888"># Dobry fold (dyscyplina)</span> <br />
+            <span class="green">if action == FOLD and hand_strength < 0.4:</span> <br />
+            step_reward += 0.02 <span style="color: #888"># Bonus za foldowanie słabych rąk</span><br />
+
+            <span style="color: #888"># Zły fold (strach)</span><br />
+            <span class="red">if action == FOLD and hand_strength > 0.7:</span><br />
+            step_reward -= 0.05 <span style="color: #888"># Kara za foldowanie mocnych rąk</span><br />
+
+            <span style="color: #888"># Nieudany blef</span><br />
+            <span class="orange">if action == RAISE and hand_strength < 0.2 and loss:</span><br />
+            step_reward *= 1.2 <span style="color: #888"># Wzmocnienie straty za przegrany blef</span><br />
+
+            <span style="color: #888"># Dobry value bet</span><br />
+            <span class="blue">if action == RAISE and hand_strength > 0.8 and win:</span><br />
+            step_reward *= 1.1 <span style="color: #888"># Bonus za wygrany value bet</span><br />
+          </div>
+        </section>
+
+        <!-- SLAJD 14: Optymalizacje -->
+        <section>
+          <h2>Optymalizacje Wydajności</h2>
+          <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 15px">
+            <div class="highlight-box" style="flex: 1; min-width: 200px; max-width: 280px">
+              <p class="green" style="margin: 0; font-size: 1.1em">Zero-Copy Encoding</p>
+              <p style="font-size: 0.7em; color: #888; margin: 5px 0 0 0">Prealokowane tensory GPU<br />In-place updates</p>
+            </div>
+            <div class="highlight-box" style="flex: 1; min-width: 200px; max-width: 280px">
+              <p class="blue" style="margin: 0; font-size: 1.1em">Cached Forward</p>
+              <p style="font-size: 0.7em; color: #888; margin: 5px 0 0 0">Przechowywanie (state, logits, value)<br />Reużycie w PPO epochs</p>
+            </div>
+            <div class="highlight-box" style="flex: 1; min-width: 200px; max-width: 280px">
+              <p class="orange" style="margin: 0; font-size: 1.1em">Batched PPO</p>
+              <p style="font-size: 0.7em; color: #888; margin: 5px 0 0 0">Jeden forward pass dla 50-200 kroków<br />Lepsza wykorzystanie GPU</p>
+            </div>
+            <div class="highlight-box" style="flex: 1; min-width: 200px; max-width: 280px">
+              <p class="purple" style="margin: 0; font-size: 1.1em">Adaptive LR</p>
+              <p style="font-size: 0.7em; color: #888; margin: 5px 0 0 0">Automatyczna korekta LR<br />na podstawie KL divergence</p>
+            </div>
+          </div>
+          <div class="metric-card" style="margin-top: 30px">
+            <div class="metric-value">5-10x</div>
+            <div class="metric-label">Przyspieszenie treningu RL</div>
+          </div>
+        </section>
+
+        <!-- SLAJD 15: Wyniki SL -->
+        <section>
+          <h2>Wyniki: Supervised Learning</h2>
+          <div class="two-columns">
+            <div>
+              <img src="../validation_results/confusion_matrix_Test.png" alt="Confusion Matrix" style="max-height: 350px" />
+            </div>
+            <div>
+              <table style="font-size: 0.7em">
+                <tr>
+                  <th>Akcja</th>
+                  <th>Accuracy</th>
+                  <th>F1</th>
+                </tr>
+                <tr>
+                  <td>Fold</td>
+                  <td>~70%</td>
+                  <td>~0.72</td>
+                </tr>
+                <tr>
+                  <td>Call</td>
+                  <td>~65%</td>
+                  <td>~0.62</td>
+                </tr>
+                <tr>
+                  <td>Raise</td>
+                  <td>~75%</td>
+                  <td>~0.72</td>
+                </tr>
+              </table>
+              <div class="metric-card" style="margin-top: 20px">
+                <div class="metric-value">~70%</div>
+                <div class="metric-label">Balanced Accuracy</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SLAJD 16: Wyniki krzywe uczenia -->
+        <section>
+          <h2>Krzywe Uczenia</h2>
+          <div class="two-columns">
+            <div>
+              <img src="../runs/run_20251114_125815/plots/train_loss_total.png" alt="Training Loss" style="max-height: 280px" />
+              <p style="font-size: 0.7em; color: #888">Training Loss</p>
+            </div>
+            <div>
+              <img src="../runs/run_20251114_125815/plots/val_balanced_accuracy.png" alt="Validation Accuracy" style="max-height: 280px" />
+              <p style="font-size: 0.7em; color: #888">Validation Balanced Accuracy</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- SLAJD 17: Wyniki RL -->
+        <section>
+          <h2>Wyniki: Reinforcement Learning</h2>
+          <div class="two-columns">
+            <div>
+              <img src="../rl_wins_by_player.png" alt="RL Wins" style="max-height: 230px" />
+            </div>
+            <div>
+              <div class="metric-card">
+                <div class="metric-value">~55%</div>
+                <div class="metric-label">Win Rate vs Baseline</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value">+0.2 BB</div>
+                <div class="metric-label">Expected Value / hand</div>
+              </div>
+              <p style="font-size: 0.7em; color: #888; margin-top: 15px">Model RL przewyższa model bazowy<br /></p>
+            </div>
+          </div>
+          <div>
+            <img src="../profit_graph.png" alt="RL Profit" style="max-height: 290px" />
+          </div>
+        </section>
+
+        <!-- SLAJD 18: Ciekawe rozwiązania -->
+        <section>
+          <h2>Zastosowane Rozwiązania</h2>
+          <div style="font-size: 0.85em">
+            <div class="highlight-box">
+              <p class="green" style="margin: 0">1. Outcome-Based Weighting</p>
+              <p style="font-size: 0.75em; color: #aaa; margin: 5px 0 0 0">Wagi przykładów treningowych zależą od wyniku ręki</p>
+            </div>
+            <div class="highlight-box">
+              <p class="blue" style="margin: 0">2. Dual-Head Architecture</p>
+              <p style="font-size: 0.75em; color: #aaa; margin: 5px 0 0 0">Jedna głowica dla akcji dyskretnych, druga dla ciągłego rozmiaru zakładu</p>
+            </div>
+            <div class="highlight-box">
+              <p class="orange" style="margin: 0">3. Log-Space Value Prediction</p>
+              <p style="font-size: 0.75em; color: #aaa; margin: 5px 0 0 0">Predykcja rozmiaru zakładu w przestrzeni logarytmicznej (range: 0.5x - 9000x pot)</p>
+            </div>
+            <div class="highlight-box">
+              <p class="purple" style="margin: 0">4. Hand Strength Integration</p>
+              <p style="font-size: 0.75em; color: #aaa; margin: 5px 0 0 0">Jawna cecha siły ręki (0-1) dodana do stanu statycznego</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- SLAJD 19: Deployment -->
+        <!-- <section>
+          <h2>Deployment</h2>
+          <div class="two-columns">
+            <div>
+              <h3 style="color: #42affa; font-size: 1em">Eksport</h3>
+              <ul style="font-size: 0.8em">
+                <li>Format ONNX</li>
+                <li>Rozmiar: ~100 MB</li>
+                <li>Cross-platform inference</li>
+              </ul>
+              <br />
+              <h3 style="color: #42affa; font-size: 1em">Wydajność</h3>
+              <ul style="font-size: 0.8em">
+                <li>CPU: ~10-50 ms / decyzja</li>
+                <li>GPU batched: <1 ms / decyzja</li>
+              </ul>
+            </div>
+            <div>
+              <img src="../validation_results/performance_radar_Test.png" alt="Performance Radar" style="max-height: 350px" />
+            </div>
+          </div>
+        </section> -->
+
+        <!-- SLAJD 20: Podsumowanie -->
+        <section data-background-gradient="linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)">
+          <h2>Podsumowanie</h2>
+          <div style="text-align: left; max-width: 800px; margin: 0 auto">
+            <p><span class="green">&#10003;</span> Zaawansowana architektura Transformer z podwójnym enkoderem</p>
+            <p><span class="green">&#10003;</span> Innowacyjne ważenie strat oparte na wyniku ręki</p>
+            <p><span class="green">&#10003;</span> Efektywne RL z zero-copy encoding i batched PPO</p>
+            <p><span class="green">&#10003;</span> ~70% balanced accuracy w klasyfikacji akcji</p>
+            <p><span class="green">&#10003;</span> ~55% win rate po treningu RL</p>
+          </div>
+          <br />
+          <div class="highlight-box" style="display: inline-block">
+            <p style="margin: 0; font-size: 1.1em">Kompletny system AI do pokera<br />od preprocessingu po deployment</p>
+          </div>
+          <br /><br />
+          <p style="font-size: 1.5em">
+            <span class="poker-card red">A&#9829;</span>
+            <span class="poker-card black">A&#9824;</span>
+          </p>
+        </section>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/highlight/highlight.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        slideNumber: "c/t",
+        transition: "slide",
+        backgroundTransition: "fade",
+        plugins: [RevealHighlight],
+        width: 1200,
+        height: 700,
+        margin: 0.04,
+      });
+    </script>
+  </body>
+</html>
